@@ -6,7 +6,7 @@
   "author": {
     "name": "Mark Lee"
   },
-  "repository": "https://github.com/mechanai/deepreview-claude",
+  "repository": "https://github.com/iamrz1/deepreview-claude",
   "license": "MIT",
   "keywords": ["code-review", "multi-agent", "spec-review"],
   "mcpServers": "./.mcp.json"

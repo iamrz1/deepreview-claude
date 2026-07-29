@@ -6,7 +6,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/mechanai/deepreview-claude"
+    "url": "https://github.com/iamrz1/deepreview-claude"
   },
   "type": "module",
   "scripts": {

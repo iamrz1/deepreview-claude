@@ -14,7 +14,7 @@ actionable implementation plan.
 Add this repository as a plugin marketplace, then install the plugin:
 
 ```
-/plugin marketplace add mechanai/deepreview-claude
+/plugin marketplace add iamrz1/deepreview-claude
 /plugin install deepreview@deepreview-claude
 ```
 
