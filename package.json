@@ -1,0 +1,36 @@
+{
+  "name": "deepreview-claude",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Multi-agent parallel code/spec review for Claude Code (plugin)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mechanai/deepreview-claude"
+  },
+  "type": "module",
+  "scripts": {
+    "build": "mise run build",
+    "test": "mise run test",
+    "lint": "mise run lint",
+    "fmt": "mise run fmt"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "gray-matter": "4.0.3",
+    "js-yaml": "4.1.0",
+    "parse-diff": "0.11.1",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "bun-types": "^1.3.14",
+    "oxfmt": "0.52.0",
+    "oxlint": "1.67.0",
+    "oxlint-tsgolint": "^0.23.0"
+  },
+  "engines": {
+    "bun": ">=1.2.0",
+    "node": ">=22.0.0"
+  }
+}

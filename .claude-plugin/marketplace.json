@@ -1,0 +1,15 @@
+{
+  "name": "deepreview-claude",
+  "owner": {
+    "name": "Mark Lee"
+  },
+  "plugins": [
+    {
+      "name": "deepreview",
+      "source": {
+        "source": "path",
+        "path": "."
+      }
+    }
+  ]
+}

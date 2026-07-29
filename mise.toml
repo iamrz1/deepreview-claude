@@ -1,0 +1,37 @@
+[tools]
+bun = "1"
+
+[tasks.build]
+description = "Bundle the MCP server into a self-contained Node script"
+run = """
+bun build mcp-server/src/index.ts --outfile mcp-server/dist/index.mjs --target node --format esm --banner '#!/usr/bin/env node'
+chmod +x mcp-server/dist/index.mjs
+"""
+
+[tasks.fmt]
+description = "Format repo"
+depends = ["fmt:*"]
+
+[tasks."fmt:mise"]
+description = "Format mise config"
+run = "mise fmt"
+
+[tasks."fmt:oxfmt"]
+description = "Format files via oxfmt"
+run = "bun x oxfmt --write ."
+
+[tasks.lint]
+description = "Lint repo"
+depends = ["lint:*"]
+
+[tasks."lint:oxlint"]
+description = "Lint TypeScript files"
+run = "bun x oxlint src mcp-server/src"
+
+[tasks."lint:oxfmt"]
+description = "Check if files are formatted correctly"
+run = "bun x oxfmt --check ."
+
+[tasks.test]
+description = "Run tests"
+run = "bun test"
