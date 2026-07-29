@@ -6,10 +6,7 @@
   "plugins": [
     {
       "name": "deepreview",
-      "source": {
-        "source": "path",
-        "path": "."
-      }
+      "source": "."
     }
   ]
 }
