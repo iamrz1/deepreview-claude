@@ -23,7 +23,13 @@ Keep these when reconciling. Do not delete them because upstream lacks them.
 | This repo | Notes |
 |---|---|
 | `agents/deepreview-pr-summary.md` | Final PR summary (description, assessment, issue table with GitHub links). |
-| STEP 7a in `commands/deepreview.md` and `commands/deepreview-pr-review.md` | Dispatches `deepreview-pr-summary`. Also adds `pr-meta.json`, `OWNER_REPO`, and `PR_HEAD_SHA` setup in STEP 2 of both, plus a `build_prior_review` call in `deepreview.md`. Re-apply after overwriting either command from upstream. |
+| PR mode of `commands/deepreview.md` | Local rework. `/deepreview <PR#>` absorbed upstream's `/deepreview-pr-review`: prior-review flags and fetch, `pr-meta.json`, the PR summary (STEP 7a), and post/apply choice (STEPs 8-10). Do not overwrite this file from upstream. Merge upstream changes into it by hand. |
+
+## Merged on purpose (upstream file → where it lives here)
+
+| Upstream path | This repo |
+|---|---|
+| `.opencode/commands/deepreview-pr-review.md` | PR mode of `commands/deepreview.md`. Port upstream changes there. Do not recreate the file. |
 
 ## Excluded on purpose (do not port)
 
