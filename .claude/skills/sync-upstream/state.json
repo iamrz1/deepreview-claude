@@ -1,7 +1,0 @@
-{
-  "upstream_repo": "mechanai/deepreview",
-  "upstream_branch": "main",
-  "vendor_branch": "vendor/mechanai-deepreview",
-  "last_synced_upstream_sha": "df147af0b4354d43aa80cc75c2c68a129c5db1b2",
-  "last_synced_at": "2026-07-29"
-}

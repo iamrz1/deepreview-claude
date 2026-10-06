@@ -26993,7 +26993,7 @@ async function postReview(opts) {
 }
 
 // src/build-prior-review.ts
-import { readFile as readFile2, writeFile } from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
 import { resolve as resolve2 } from "node:path";
 
 // src/build-prior-review-fetch.ts
@@ -27182,22 +27182,13 @@ function formatThread(thread) {
   return lines.join(`
 `);
 }
-function formatFixedSections(prBody, manualContent) {
-  const sections = [];
-  if (prBody.trim()) {
-    sections.push(`## PR Description
+function formatFixedSections(prBody) {
+  return prBody.trim() ? [`## PR Description
 
-${prBody.trim()}`);
-  }
-  if (manualContent !== null && manualContent.trim() !== "") {
-    sections.push(`## Manual Prior Review
-
-${manualContent.trim()}`);
-  }
-  return sections;
+${prBody.trim()}`] : [];
 }
-function formatPriorReview(prBody, threads, manualContent) {
-  const sections = formatFixedSections(prBody, manualContent);
+function formatPriorReview(prBody, threads) {
+  const sections = formatFixedSections(prBody);
   if (threads.length > 0) {
     const sorted = [...threads].sort((a, b) => {
       const pathCmp = a.path.localeCompare(b.path);
@@ -27224,20 +27215,11 @@ ${threadLines.join(`
       }
     }
     if (fileSections.length > 0) {
-      const insertIdx = sections.findIndex((s) => s.startsWith("## Manual Prior Review"));
-      if (insertIdx >= 0) {
-        sections.splice(insertIdx, 0, `## Prior Review Comments
+      sections.push(`## Prior Review Comments
 
 ${fileSections.join(`
 
 `)}`);
-      } else {
-        sections.push(`## Prior Review Comments
-
-${fileSections.join(`
-
-`)}`);
-      }
     }
   }
   return sections.join(`
@@ -27270,11 +27252,11 @@ function newestCommentTimestamp(thread) {
     return "1970-01-01T00:00:00Z";
   return thread.comments[thread.comments.length - 1].createdAt;
 }
-function buildPriorReviewContent(prBody, threads, manualContent) {
-  if (!prBody.trim() && threads.length === 0 && (manualContent === null || manualContent.trim() === "")) {
+function buildPriorReviewContent(prBody, threads) {
+  if (!prBody.trim() && threads.length === 0) {
     return "";
   }
-  const fixedSections = formatFixedSections(prBody, manualContent);
+  const fixedSections = formatFixedSections(prBody);
   const fixedContent = fixedSections.join(`
 
 `);
@@ -27305,19 +27287,15 @@ function buildPriorReviewContent(prBody, threads, manualContent) {
       budgetRemaining -= threadBytes;
     }
   }
-  const result = formatPriorReview(prBody, keptThreads, manualContent);
+  const result = formatPriorReview(prBody, keptThreads);
   return truncateToFit(result, MAX_BYTES);
 }
 async function buildPriorReview(opts) {
-  const { prNumber, outputPath, manualPriorReview } = opts;
+  const { prNumber, outputPath } = opts;
   const cwd = opts.cwd ?? process.cwd();
   const prInfo = await getPrInfo(prNumber, { cwd });
   const { prBody, threads } = await fetchPrReviewThreads(prInfo.owner, prInfo.name, prNumber);
-  let manualContent = null;
-  if (manualPriorReview !== undefined) {
-    manualContent = await readFile2(resolve2(cwd, manualPriorReview), "utf8");
-  }
-  const content = buildPriorReviewContent(prBody, threads, manualContent);
+  const content = buildPriorReviewContent(prBody, threads);
   await writeFile(resolve2(cwd, outputPath), content, "utf8");
   if (content === "") {
     return `No prior review content found. Written empty file to ${outputPath}.`;
@@ -27330,8 +27308,6 @@ async function buildPriorReview(opts) {
     parts.push("PR description");
   if (threads.length > 0)
     parts.push(`${threads.length} threads from ${uniqueAuthors.size} reviewers`);
-  if (manualContent !== null)
-    parts.push("manual prior review");
   return `Built prior review: ${kb}KB (${parts.join(" + ")}). Written to ${outputPath}.`;
 }
 
@@ -27654,18 +27630,16 @@ server.registerTool("post_review", {
   }
 });
 server.registerTool("build_prior_review", {
-  description: "Fetch PR description and existing review threads from GitHub, format them into " + "a prior-review Markdown document for deduplication. Merges with an optional " + "manually-provided prior review file.",
+  description: "Fetch PR description and existing review threads from GitHub, format them into " + "a prior-review Markdown document for deduplication.",
   inputSchema: {
     pr_number: exports_external.number().int().positive().describe("Pull request number"),
-    output_path: exports_external.string().describe("Path to write the generated prior-review file"),
-    manual_prior_review: exports_external.string().optional().describe("Path to a user-provided prior-review file to merge in")
+    output_path: exports_external.string().describe("Path to write the generated prior-review file")
   }
-}, async ({ pr_number, output_path, manual_prior_review }) => {
+}, async ({ pr_number, output_path }) => {
   try {
     const summary = await buildPriorReview({
       prNumber: pr_number,
       outputPath: output_path,
-      manualPriorReview: manual_prior_review,
       cwd: process.cwd()
     });
     return textResult(summary);

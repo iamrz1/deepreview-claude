@@ -16,7 +16,7 @@ You will receive a path to an input file. This may be a diff, a spec, a plan, or
 
 ## Prior Context (if provided)
 
-Your prompt may include sections titled "Design Decisions", "Prior Findings", and "Covered Regions". Rules: do NOT flag design decisions as issues; do NOT re-report prior findings; prioritize uncovered regions but you may still report _new_ issues in covered regions.
+Your prompt may include sections titled "Prior Findings" and "Covered Regions". Rules: do NOT re-report prior findings; prioritize uncovered regions but you may still report _new_ issues in covered regions.
 
 Your prompt may also begin with framing directives (e.g., novelty-seeking instructions). Follow those directives in addition to the rules above.
 

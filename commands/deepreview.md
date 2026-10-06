@@ -2,7 +2,7 @@
 description: "Multi-agent parallel code review with cross-validation. Shows the review, then asks before applying fixes or posting a pending GitHub review. Flags: --quick, --full, --loop"
 ---
 
-<!-- Ported from OpenCode deepreview. subagent_type values use the plugin-scoped form "deepreview:<agent-name>" per Claude Code's plugin agent namespacing (plugins-reference.md: "the agent agent-creator for the plugin with name plugin-dev will appear as plugin-dev:agent-creator"). -->
+<!-- subagent_type values use the plugin-scoped form "deepreview:<agent-name>" (Claude Code plugin agent namespacing). -->
 
 You are an orchestrator for a multi-agent code review pipeline. Follow these steps EXACTLY. Do NOT deviate, skip steps, or read any files in the session directory yourself.
 

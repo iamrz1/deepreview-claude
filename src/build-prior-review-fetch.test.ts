@@ -1,7 +1,7 @@
 // oxlint-disable max-lines, max-lines-per-function, no-floating-promises -- Why: mock-based integration tests require inline fixture objects for GQL responses; mock.module() returns void in bun:test but is typed as thenable
 import { afterEach, beforeEach, describe, it, mock } from "bun:test";
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -322,47 +322,5 @@ describe("buildPriorReview (mocked)", () => {
 
     const written = await readFile(join(tmpDir, outputPath), "utf8");
     assert.equal(written, "");
-  });
-
-  it("reads manual file and includes it in output", async () => {
-    const manualPath = "manual-review.md";
-    await writeFile(join(tmpDir, manualPath), "Manually noted: check error handling");
-
-    mock.module("./graphql.ts", () => ({
-      graphql: async () => ({
-        repository: {
-          pullRequest: {
-            body: "PR body here",
-            reviewThreads: {
-              pageInfo: { hasNextPage: false, endCursor: null },
-              nodes: [],
-            },
-          },
-        },
-      }),
-      getPrInfo: async () => ({
-        owner: "org",
-        name: "repo",
-        prNodeId: "PR_1",
-        headOid: "abc",
-        state: "OPEN",
-      }),
-    }));
-
-    const { buildPriorReview } = await import("./build-prior-review.ts");
-    const outputPath = "merged-prior.md";
-    const result = await buildPriorReview({
-      prNumber: 3,
-      outputPath,
-      manualPriorReview: manualPath,
-      cwd: tmpDir,
-    });
-
-    assert.ok(result.includes("manual prior review"));
-    assert.ok(result.includes(outputPath));
-
-    const written = await readFile(join(tmpDir, outputPath), "utf8");
-    assert.ok(written.includes("Manually noted: check error handling"));
-    assert.ok(written.includes("PR body here"));
   });
 });

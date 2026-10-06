@@ -16,14 +16,13 @@ You will receive a path to an input file. This may be a diff, a spec, a plan, or
 
 ## Prior Context (if provided)
 
-Your prompt may include sections titled "Project Context", "Design Decisions", "Prior Findings", and "Covered Regions". Rules:
+Your prompt may include sections titled "Project Context", "Prior Findings", and "Covered Regions". Rules:
 
 - **Project Context:** Use version, deployment model, and threat model to calibrate severity:
   - Localhost-only tools: downgrade auth/network findings to **suggestion**.
   - v0.x.0 projects: downgrade API stability, production hardening, and breaking API changes to **suggestion** (expected per semver).
   - Internal-network tools: downgrade external attack vector findings to **suggestion**.
   - Published libraries (v1+): flag unvalidated input, auth gaps, and breaking changes as **critical** or **warning**.
-- **Design Decisions:** Do NOT flag as issues; do NOT suggest alternatives.
 - **Prior Findings:** Do NOT re-report.
 - **Covered Regions:** Prioritize uncovered regions but you may still report _new_ issues in covered regions.
 

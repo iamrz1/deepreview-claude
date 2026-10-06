@@ -16,14 +16,13 @@ You will receive a path to an input file. This may be a diff, a spec, a plan, or
 
 ## Prior Context (if provided)
 
-Your prompt may include sections titled "Project Context", "Design Decisions", "Prior Findings", and "Covered Regions". Rules:
+Your prompt may include sections titled "Project Context", "Prior Findings", and "Covered Regions". Rules:
 
 - **Project Context:** If your prompt includes a "Project Context" section (version, deployment model, threat model), use it to calibrate severity:
   - Localhost-only tools have no network threat model: downgrade auth/network findings and missing security headers to **suggestion**-level, not **warning**.
   - v0.x.0 projects may skip some production security checks: downgrade findings about production hardening to **suggestion**, not **critical** or **warning**.
   - Internal-network tools are lower-threat than public-facing services: downgrade findings about external attack vectors to **suggestion**.
   - Published libraries (v1+) must follow production security standards: flag unvalidated input and auth gaps as **critical** or **warning**.
-- **Design Decisions:** Do NOT flag design decisions as issues; do NOT suggest alternatives.
 - **Prior Findings:** Do NOT re-report prior findings.
 - **Covered Regions:** Prioritize uncovered regions but you may still report _new_ issues in covered regions.
 
