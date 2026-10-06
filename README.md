@@ -5,9 +5,10 @@ specialized review agents, cross-validates findings, synthesizes results, and pr
 actionable implementation plan.
 
 > [!NOTE]
-> Originally based on [`mechanai/deepreview`](https://github.com/mechanai/deepreview) (built for
-> [OpenCode](https://opencode.ai)). It is now maintained independently and does not track
-> upstream. It is not an official Anthropic plugin.
+> Based on [`mechanai/deepreview`](https://github.com/mechanai/deepreview) by Mark Lee, built for
+> [OpenCode](https://opencode.ai). Thanks to Mark for the original design and review pipeline.
+> This version is maintained independently by [@iamrz1](https://github.com/iamrz1) and does not
+> track upstream. It is not an official Anthropic plugin.
 
 ## Install
 
@@ -210,6 +211,7 @@ mise run test
 mise run lint
 mise run fmt
 mise run build   # rebuilds mcp-server/dist/index.mjs — commit the result
+mise run reinstall  # rebuild, then reinstall the plugin into Claude Code (restart after)
 ```
 
 ## License
