@@ -1,10 +1,13 @@
 import { describe, it } from "bun:test";
 import assert from "node:assert/strict";
+import { mkdtempSync } from "node:fs";
 import { writeFile, mkdir, rm, symlink } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { loadAndValidatePr } from "./load-pr.ts";
 
-const TMP_DIR = "/tmp/opencode/load-pr-test";
+const TMP_DIR = mkdtempSync(join(tmpdir(), "load-pr-test-"));
+const OUTSIDE_FILE = join(mkdtempSync(join(tmpdir(), "load-pr-outside-")), "outside.md");
 
 describe("loadAndValidatePr — path validation", () => {
   it("rejects paths with null bytes", async () => {
@@ -51,7 +54,8 @@ describe("loadAndValidatePr — file system", () => {
       // ignore if not present
     }
     try {
-      await symlink("/etc/hostname", linkPath);
+      await writeFile(OUTSIDE_FILE, "outside");
+      await symlink(OUTSIDE_FILE, linkPath);
     } catch {
       // symlink creation may fail on some systems — skip test
       return;

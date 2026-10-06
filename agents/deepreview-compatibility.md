@@ -16,14 +16,13 @@ You will receive a path to an input file. This may be a diff, a spec, a plan, or
 
 ## Prior Context (if provided)
 
-Your prompt may include sections titled "Project Context", "Design Decisions", "Prior Findings", and "Covered Regions". Rules:
+Your prompt may include sections titled "Project Context", "Prior Findings", and "Covered Regions". Rules:
 
 - **Project Context:** If your prompt includes a "Project Context" section (version, deployment model, status), use it to calibrate severity:
   - v0.x.0 projects: breaking changes are expected and acceptable per semver — flag them as **suggestion**, not **critical** or **warning**. The change "API breaking changes are expected" still applies at v0.x.0.
   - v1+ public libraries: breaking changes require major version bump — flag as **critical** or **warning**.
   - Internal tools with no external consumers: breaking changes are **suggestion**-level (internal reorganization risk only).
   - Private/unpublished packages: breaking changes are **suggestion**, unless the project explicitly targets v1+ stability.
-- **Design Decisions:** Do NOT flag design decisions as issues; do NOT suggest alternatives.
 - **Prior Findings:** Do NOT re-report prior findings.
 - **Covered Regions:** Prioritize uncovered regions but you may still report _new_ issues in covered regions.
 

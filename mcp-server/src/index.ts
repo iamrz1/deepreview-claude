@@ -107,23 +107,17 @@ server.registerTool(
   {
     description:
       "Fetch PR description and existing review threads from GitHub, format them into " +
-      "a prior-review Markdown document for deduplication. Merges with an optional " +
-      "manually-provided prior review file.",
+      "a prior-review Markdown document for deduplication.",
     inputSchema: {
       pr_number: z.number().int().positive().describe("Pull request number"),
       output_path: z.string().describe("Path to write the generated prior-review file"),
-      manual_prior_review: z
-        .string()
-        .optional()
-        .describe("Path to a user-provided prior-review file to merge in"),
     },
   },
-  async ({ pr_number, output_path, manual_prior_review }) => {
+  async ({ pr_number, output_path }) => {
     try {
       const summary = await buildPriorReview({
         prNumber: pr_number,
         outputPath: output_path,
-        manualPriorReview: manual_prior_review,
         cwd: process.cwd(),
       });
       return textResult(summary);

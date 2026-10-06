@@ -1,4 +1,4 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { getPrInfo } from "./graphql.ts";
 
@@ -63,24 +63,13 @@ function formatThread(thread: ReviewThread): string {
   return lines.join("\n");
 }
 
-function formatFixedSections(prBody: string, manualContent: string | null): string[] {
-  const sections: string[] = [];
-  if (prBody.trim()) {
-    sections.push(`## PR Description\n\n${prBody.trim()}`);
-  }
-  if (manualContent !== null && manualContent.trim() !== "") {
-    sections.push(`## Manual Prior Review\n\n${manualContent.trim()}`);
-  }
-  return sections;
+function formatFixedSections(prBody: string): string[] {
+  return prBody.trim() ? [`## PR Description\n\n${prBody.trim()}`] : [];
 }
 
 /** Format threads and PR context into a Markdown document grouped by file path. */
-export function formatPriorReview(
-  prBody: string,
-  threads: ReviewThread[],
-  manualContent: string | null,
-): string {
-  const sections: string[] = formatFixedSections(prBody, manualContent);
+export function formatPriorReview(prBody: string, threads: ReviewThread[]): string {
+  const sections: string[] = formatFixedSections(prBody);
 
   if (threads.length > 0) {
     const sorted = [...threads].sort((a, b) => {
@@ -105,13 +94,7 @@ export function formatPriorReview(
     }
 
     if (fileSections.length > 0) {
-      // Insert review comments before manual section
-      const insertIdx = sections.findIndex((s) => s.startsWith("## Manual Prior Review"));
-      if (insertIdx >= 0) {
-        sections.splice(insertIdx, 0, `## Prior Review Comments\n\n${fileSections.join("\n\n")}`);
-      } else {
-        sections.push(`## Prior Review Comments\n\n${fileSections.join("\n\n")}`);
-      }
+      sections.push(`## Prior Review Comments\n\n${fileSections.join("\n\n")}`);
     }
   }
 
@@ -149,22 +132,14 @@ function newestCommentTimestamp(thread: ReviewThread): string {
 
 /**
  * Assemble a prior-review document with priority-aware truncation.
- * PR description and manual content are always kept; oldest threads are dropped first.
+ * The PR description is always kept; oldest threads are dropped first.
  */
-export function buildPriorReviewContent(
-  prBody: string,
-  threads: ReviewThread[],
-  manualContent: string | null,
-): string {
-  if (
-    !prBody.trim() &&
-    threads.length === 0 &&
-    (manualContent === null || manualContent.trim() === "")
-  ) {
+export function buildPriorReviewContent(prBody: string, threads: ReviewThread[]): string {
+  if (!prBody.trim() && threads.length === 0) {
     return "";
   }
 
-  const fixedSections = formatFixedSections(prBody, manualContent);
+  const fixedSections = formatFixedSections(prBody);
   const fixedContent = fixedSections.join("\n\n");
 
   if (threads.length === 0) {
@@ -200,7 +175,7 @@ export function buildPriorReviewContent(
     }
   }
 
-  const result = formatPriorReview(prBody, keptThreads, manualContent);
+  const result = formatPriorReview(prBody, keptThreads);
   return truncateToFit(result, MAX_BYTES);
 }
 
@@ -209,26 +184,19 @@ export interface BuildPriorReviewOptions {
   prNumber: number;
   /** Path to write the generated prior-review file. */
   outputPath: string;
-  /** Path to a user-provided prior-review file to merge in. */
-  manualPriorReview?: string;
   /** Working directory for path resolution and `gh` commands. */
   cwd?: string;
 }
 
 /** Fetch PR context from GitHub, format it, and write the prior-review file. */
 export async function buildPriorReview(opts: BuildPriorReviewOptions): Promise<string> {
-  const { prNumber, outputPath, manualPriorReview } = opts;
+  const { prNumber, outputPath } = opts;
   const cwd = opts.cwd ?? process.cwd();
 
   const prInfo = await getPrInfo(prNumber, { cwd });
   const { prBody, threads } = await fetchPrReviewThreads(prInfo.owner, prInfo.name, prNumber);
 
-  let manualContent: string | null = null;
-  if (manualPriorReview !== undefined) {
-    manualContent = await readFile(resolve(cwd, manualPriorReview), "utf8");
-  }
-
-  const content = buildPriorReviewContent(prBody, threads, manualContent);
+  const content = buildPriorReviewContent(prBody, threads);
   await writeFile(resolve(cwd, outputPath), content, "utf8");
 
   if (content === "") {
@@ -242,7 +210,6 @@ export async function buildPriorReview(opts: BuildPriorReviewOptions): Promise<s
   if (prBody.trim()) parts.push("PR description");
   if (threads.length > 0)
     parts.push(`${threads.length} threads from ${uniqueAuthors.size} reviewers`);
-  if (manualContent !== null) parts.push("manual prior review");
 
   return `Built prior review: ${kb}KB (${parts.join(" + ")}). Written to ${outputPath}.`;
 }

@@ -36,21 +36,14 @@ function makeThread(
 
 describe("formatPriorReview: sections", () => {
   it("formats PR description only", () => {
-    const result = formatPriorReview("This PR adds feature X.", [], null);
+    const result = formatPriorReview("This PR adds feature X.", []);
     assert.ok(result.includes("## PR Description"));
     assert.ok(result.includes("This PR adds feature X."));
     assert.ok(!result.includes("## Prior Review Comments"));
-    assert.ok(!result.includes("## Manual Prior Review"));
-  });
-
-  it("includes manual prior review section", () => {
-    const result = formatPriorReview("body", [], "Manual findings here.");
-    assert.ok(result.includes("## Manual Prior Review"));
-    assert.ok(result.includes("Manual findings here."));
   });
 
   it("returns empty string when all inputs are empty", () => {
-    const result = formatPriorReview("", [], null);
+    const result = formatPriorReview("", []);
     assert.equal(result, "");
   });
 });
@@ -98,7 +91,7 @@ describe("formatPriorReview: thread formatting", () => {
         ],
       },
     ];
-    const result = formatPriorReview("PR body.", threads, null);
+    const result = formatPriorReview("PR body.", threads);
     assert.ok(result.includes("### src/foo.ts"));
     assert.ok(result.includes("**L10-15**"));
     assert.ok(result.includes("[source: @octocat, human]"));
@@ -115,7 +108,7 @@ describe("formatPriorReview: thread ordering and flags", () => {
       makeThread("src/a.ts", 5, [{ login: "a", body: "a5" }]),
       makeThread("src/a.ts", 1, [{ login: "a", body: "a1" }]),
     ];
-    const result = formatPriorReview("", threads, null);
+    const result = formatPriorReview("", threads);
     const aPos = result.indexOf("### src/a.ts");
     const zPos = result.indexOf("### src/z.ts");
     assert.ok(aPos < zPos, "src/a.ts should come before src/z.ts");
@@ -128,7 +121,7 @@ describe("formatPriorReview: thread ordering and flags", () => {
     const threads = [
       makeThread("src/x.ts", 1, [{ login: "a", body: "old" }], { isOutdated: true }),
     ];
-    const result = formatPriorReview("", threads, null);
+    const result = formatPriorReview("", threads);
     assert.ok(result.includes("outdated"));
   });
 });
@@ -324,14 +317,13 @@ describe("buildPriorReviewContent: basic behavior", () => {
         ],
       },
     ];
-    const result = buildPriorReviewContent("PR body", threads, "manual");
+    const result = buildPriorReviewContent("PR body", threads);
     assert.ok(result.includes("PR body"));
     assert.ok(result.includes("small"));
-    assert.ok(result.includes("manual"));
   });
 
   it("returns empty string when all inputs empty", () => {
-    const result = buildPriorReviewContent("", [], null);
+    const result = buildPriorReviewContent("", []);
     assert.equal(result, "");
   });
 });
@@ -377,14 +369,14 @@ describe("buildPriorReviewContent: truncation", () => {
         },
       ],
     };
-    const result = buildPriorReviewContent("PR body", [oldThread, newThread], null);
+    const result = buildPriorReviewContent("PR body", [oldThread, newThread]);
     const bytes = Buffer.byteLength(result, "utf8");
     assert.ok(bytes <= 50 * 1024, `Expected <= 50KB, got ${bytes}`);
     assert.ok(result.includes("new.ts"));
     assert.ok(!result.includes("old.ts"), "old thread should have been dropped");
   });
 
-  it("preserves PR description and manual content even when threads are large", () => {
+  it("preserves PR description even when threads are large", () => {
     const bigThread: ReviewThread = {
       id: "PRT_big",
       path: "big.ts",
@@ -401,13 +393,8 @@ describe("buildPriorReviewContent: truncation", () => {
         },
       ],
     };
-    const result = buildPriorReviewContent(
-      "Important PR description",
-      [bigThread],
-      "Critical manual notes",
-    );
+    const result = buildPriorReviewContent("Important PR description", [bigThread]);
     assert.ok(result.includes("Important PR description"));
-    assert.ok(result.includes("Critical manual notes"));
     assert.ok(Buffer.byteLength(result, "utf8") <= 50 * 1024);
   });
 });
@@ -432,7 +419,7 @@ describe("formatPriorReview: formatCommentBody paths", () => {
         ],
       },
     ];
-    const result = formatPriorReview("", threads, null);
+    const result = formatPriorReview("", threads);
     assert.ok(result.includes("  > line one"));
     assert.ok(result.includes("  > line two"));
     assert.ok(result.includes("  > line three"));
@@ -459,7 +446,7 @@ describe("formatPriorReview: formatCommentBody paths", () => {
         ],
       },
     ];
-    const result = formatPriorReview("", threads, null);
+    const result = formatPriorReview("", threads);
     assert.ok(result.includes('"a single line comment"'));
   });
 });
@@ -484,7 +471,7 @@ describe("formatPriorReview: formatLineRef paths", () => {
         ],
       },
     ];
-    const result = formatPriorReview("", threads, null);
+    const result = formatPriorReview("", threads);
     assert.ok(result.includes("**L42**"));
     // Should NOT include a range
     assert.ok(!result.includes("**L42-"));
@@ -509,7 +496,7 @@ describe("formatPriorReview: formatLineRef paths", () => {
         ],
       },
     ];
-    const result = formatPriorReview("", threads, null);
+    const result = formatPriorReview("", threads);
     assert.ok(result.includes("**file-level**"));
   });
 });
@@ -534,7 +521,7 @@ describe("formatPriorReview: formatSourceTag paths", () => {
         ],
       },
     ];
-    const result = formatPriorReview("", threads, null);
+    const result = formatPriorReview("", threads);
     assert.ok(result.includes("[source: @review-bot, deepreview]"));
   });
 
@@ -557,7 +544,7 @@ describe("formatPriorReview: formatSourceTag paths", () => {
         ],
       },
     ];
-    const result = formatPriorReview("", threads, null);
+    const result = formatPriorReview("", threads);
     assert.ok(result.includes("[source: @user, human, resolved, outdated]"));
   });
 });
@@ -567,7 +554,7 @@ describe("formatPriorReview: thread ID tags", () => {
     const thread = makeThread("src/foo.ts", 10, [{ login: "alice", body: "Fix this" }], {
       id: "PRT_kwDOABC123",
     });
-    const result = formatPriorReview("", [thread], null);
+    const result = formatPriorReview("", [thread]);
     assert.ok(result.includes("[thread: PRT_kwDOABC123]"));
   });
 
@@ -575,7 +562,7 @@ describe("formatPriorReview: thread ID tags", () => {
     const thread = makeThread("src/foo.ts", 10, [{ login: "alice", body: "Fix this" }], {
       id: "PRT_kwDOXYZ789",
     });
-    const result = formatPriorReview("", [thread], null);
+    const result = formatPriorReview("", [thread]);
     assert.match(result, /\[source: [^\]]+\] \[thread: PRT_kwDOXYZ789\]/u);
   });
 });
@@ -593,7 +580,7 @@ describe("formatPriorReview: formatThread empty comments", () => {
         comments: [],
       },
     ];
-    const result = formatPriorReview("", threads, null);
+    const result = formatPriorReview("", threads);
     // Empty thread produces no output; no file heading should appear
     assert.ok(!result.includes("### src/empty.ts"));
   });
@@ -675,7 +662,7 @@ describe("buildPriorReviewContent: edge cases", () => {
         ],
       },
     ];
-    const result = buildPriorReviewContent(largePrBody, threads, null);
+    const result = buildPriorReviewContent(largePrBody, threads);
     assert.ok(result.includes(largePrBody.slice(0, 100)));
     assert.ok(!result.includes("## Prior Review Comments"));
   });
@@ -686,7 +673,7 @@ describe("buildPriorReviewContent: edge cases", () => {
       makeThread("shared/file.ts", 5, [{ login: "b", body: "comment 2" }]),
       makeThread("shared/file.ts", 10, [{ login: "c", body: "comment 3" }]),
     ];
-    const result = buildPriorReviewContent("", threads, null);
+    const result = buildPriorReviewContent("", threads);
     // All threads should be present since they share a file header
     assert.ok(result.includes("comment 1"));
     assert.ok(result.includes("comment 2"));
@@ -696,33 +683,21 @@ describe("buildPriorReviewContent: edge cases", () => {
     assert.equal(headerCount, 1);
   });
 
-  it("treats whitespace-only manualContent as empty", () => {
-    const result = buildPriorReviewContent("body", [], "   \n\t  \n  ");
-    assert.ok(!result.includes("## Manual Prior Review"));
-    assert.ok(result.includes("## PR Description"));
-  });
-
   it("treats whitespace-only prBody as empty", () => {
-    const result = buildPriorReviewContent("  \n  \t  ", [], null);
+    const result = buildPriorReviewContent("  \n  \t  ", []);
     assert.equal(result, "");
   });
 
-  it("orders sections: PR Description → Prior Review Comments → Manual Prior Review", () => {
+  it("orders sections: PR Description → Prior Review Comments", () => {
     const threads = [makeThread("src/x.ts", 1, [{ login: "r", body: "finding" }])];
-    const result = buildPriorReviewContent("description", threads, "manual notes");
+    const result = buildPriorReviewContent("description", threads);
     const prDescIdx = result.indexOf("## PR Description");
     const priorCommentsIdx = result.indexOf("## Prior Review Comments");
-    const manualIdx = result.indexOf("## Manual Prior Review");
     assert.ok(prDescIdx >= 0, "PR Description section missing");
     assert.ok(priorCommentsIdx >= 0, "Prior Review Comments section missing");
-    assert.ok(manualIdx >= 0, "Manual Prior Review section missing");
     assert.ok(
       prDescIdx < priorCommentsIdx,
       "PR Description should come before Prior Review Comments",
-    );
-    assert.ok(
-      priorCommentsIdx < manualIdx,
-      "Prior Review Comments should come before Manual Prior Review",
     );
   });
 });

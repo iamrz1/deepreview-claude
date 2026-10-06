@@ -5,9 +5,9 @@ specialized review agents, cross-validates findings, synthesizes results, and pr
 actionable implementation plan.
 
 > [!NOTE]
-> This is an independent, community port of [`mechanai/deepreview`](https://github.com/mechanai/deepreview)
-> (originally built for [OpenCode](https://opencode.ai)) to the Claude Code plugin format. It is
-> not an official Anthropic plugin.
+> Originally based on [`mechanai/deepreview`](https://github.com/mechanai/deepreview) (built for
+> [OpenCode](https://opencode.ai)). It is now maintained independently and does not track
+> upstream. It is not an official Anthropic plugin.
 
 ## Install
 
@@ -18,11 +18,10 @@ Add this repository as a plugin marketplace, then install the plugin:
 /plugin install deepreview@deepreview-claude
 ```
 
-(While developing locally before the repo is pushed, add it by local path instead:
-`/plugin marketplace add /path/to/deepreview-claude`.)
+For local development, add it by path instead: `/plugin marketplace add /path/to/deepreview-claude`.
 
-The plugin bundles its agents and commands directly — Claude Code auto-discovers them from the
-plugin manifest, so no separate setup/symlink step is needed (unlike the OpenCode version).
+To update after a new release: `claude plugin update deepreview@deepreview-claude`, then restart
+Claude Code.
 
 ## Usage
 
@@ -166,10 +165,10 @@ After applying fixes, the applier agent runs formatting, linting, and tests. It 
 commands based on what exists in your project root:
 
 | File detected  | Format           | Lint                               | Test            |
-| -------------- | ---------------- | ----------------------------------- | --------------- |
-| `mise.toml`    | `mise run fmt`   | `mise run lint` / `mise run check`  | `mise run test` |
-| `package.json` | `npm run format` | `npm run lint`                      | `npm run test`  |
-| `Makefile`     | `make fmt`       | `make lint`                         | `make test`     |
+| -------------- | ---------------- | ---------------------------------- | --------------- |
+| `mise.toml`    | `mise run fmt`   | `mise run lint` / `mise run check` | `mise run test` |
+| `package.json` | `npm run format` | `npm run lint`                     | `npm run test`  |
+| `Makefile`     | `make fmt`       | `make lint`                        | `make test`     |
 
 If your project uses different commands (e.g., `cargo fmt`, `ruff check --fix`),
 specify them in `AGENTS.md`. The applier looks for commands labeled **Format**, **Lint**, and
@@ -187,23 +186,18 @@ If no commands are found and no config files exist, verification is skipped.
 When lint fails, the applier attempts to fix errors in the files it modified (up to 2 retry
 cycles) before reporting the failure.
 
-## Architecture notes (differences from the OpenCode version)
+## Architecture
 
-- **No setup script.** Claude Code plugins auto-discover `agents/` and `commands/` bundled in the
-  plugin, so there's no equivalent of the OpenCode symlink-install step.
-- **Custom tools are an MCP server**, not inline TypeScript `tool()` registrations. `mcp-server/`
-  bundles the same review-routing, calibration, and GitHub-posting logic from `src/` behind five
-  MCP tools (`route_diff`, `post_review`, `build_prior_review`, `calibration_load`,
-  `calibration_save`), started automatically via `.mcp.json` when the plugin is enabled. The
-  bundled `mcp-server/dist/index.mjs` is committed so the plugin works immediately after install
-  with no build step.
-- **Coarser per-agent permissions.** Claude Code restricts subagents by tool (`Read`, `Write`,
-  `Edit`, `Bash`, ...), not by specific shell command pattern the way OpenCode's
-  `permission.bash` allowlist did. Each agent's system prompt now states explicitly which shell
-  commands it may run (e.g., "only `git log`/`git blame`/`git show`") since that's the only
-  enforcement surface available — this is a norm, not a hard sandbox, so treat it as best-effort.
-- **Subagent dispatch** uses the Agent tool's `subagent_type` parameter in place of OpenCode's
-  Task tool `subagent_type` — functionally equivalent, same names.
+- **Command and agents.** Claude Code discovers `commands/` and `agents/` from the plugin
+  manifest. The orchestrator in `commands/deepreview.md` dispatches agents with the Agent
+  tool's `subagent_type` (`deepreview:<agent-name>`).
+- **MCP server.** `mcp-server/` exposes the logic in `src/` as five MCP tools (`route_diff`,
+  `post_review`, `build_prior_review`, `calibration_load`, `calibration_save`), started via
+  `.mcp.json` when the plugin is enabled. The bundle `mcp-server/dist/index.mjs` is committed so
+  the plugin works with no build step.
+- **Agent permissions.** Claude Code limits subagents by tool (`Read`, `Write`, `Edit`, `Bash`),
+  not by shell command. Each agent's prompt states which commands it may run. This is a norm,
+  not a sandbox.
 
 ## Development
 
