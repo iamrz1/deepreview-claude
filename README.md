@@ -7,7 +7,7 @@ actionable implementation plan.
 > [!NOTE]
 > Based on [`mechanai/deepreview`](https://github.com/mechanai/deepreview) by Mark Lee, built for
 > [OpenCode](https://opencode.ai). Thanks to Mark for the original design and review pipeline.
-> This version is maintained independently by [@iamrz1](https://github.com/iamrz1) and does not
+> This version is maintained independently by Rezoan Tamal ([@iamrz1](https://github.com/iamrz1)) and does not
 > track upstream. It is not an official Anthropic plugin.
 
 ## Install
