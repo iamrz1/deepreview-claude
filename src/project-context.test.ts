@@ -1,5 +1,6 @@
 import { describe, it, expect } from "bun:test";
 import { getProjectMetadata, formatProjectContextPreamble } from "./project-context";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 
 describe("project-context: metadata extraction", () => {
@@ -8,7 +9,11 @@ describe("project-context: metadata extraction", () => {
     const metadata = getProjectMetadata(repoRoot);
 
     expect(metadata).toBeDefined();
-    expect(metadata.version).toBe("0.1.0");
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Why: JSON.parse returns any; test only reads one field
+    const pkg = JSON.parse(readFileSync(path.join(repoRoot, "package.json"), "utf8")) as {
+      version: string;
+    };
+    expect(metadata.version).toBe(pkg.version);
     expect(metadata.name).toBe("deepreview-claude");
     expect(metadata.deploymentModel).toBeDefined();
   });
