@@ -65,79 +65,16 @@ override the choice.
 graph LR
     A[7 Reviewers] --> B[7 Validators]
     B --> C[Synthesizer]
-    C --> D[Planner]
-    D --> E[Applier]
+    C --> S[Summary]
+    S -->|you choose| D[Planner + Applier]
+    S -->|you choose, PR only| P[Pending GitHub review]
 ```
 
-For small effective-size changes, the abbreviated path collapses this to:
-
-```mermaid
-graph LR
-    A[Quick Reviewer] --> D[Planner]
-    D --> E[Applier]
-```
+For small effective-size changes, a single quick reviewer replaces the reviewers,
+validators, and synthesizer.
 
 Stages communicate via files on disk — the orchestrator never reads review content into
 its own context, keeping token usage minimal.
-
-## Calibration
-
-deepreview learns from validator severity adjustments over time. When validators
-consistently downgrade the same category of finding (e.g., "missing auth" in a
-localhost-only tool), the system proposes calibration entries at the end of each
-`--loop` run. Calibration is loaded and learned in `--loop` runs only.
-
-### How it works
-
-1. **Session end:** The orchestrator compares reviewer severity to synthesized
-   (post-validation) severity
-2. **Proposal:** Systematic downgrades are proposed as calibration entries
-3. **User confirms:** You approve, edit, or reject the proposed changes
-4. **Next session:** Approved calibration is injected into reviewer prompts,
-   reducing severity inflation
-
-### Configuration
-
-Local calibration (personal, gitignored):
-
-```yaml
-# .ai/deepreview/calibration.yml
-version: 1
-settings:
-  expiryDays: 30 # days before unconfirmed entries expire
-entries:
-  - id: "cal-001"
-    pattern: "missing authentication"
-    context: "localhost-only server"
-    originalSeverity: "warning"
-    adjustedSeverity: "suggestion"
-    observedCount: 4
-    lastConfirmed: "2026-06-28"
-    createdAt: "2026-06-01"
-```
-
-### Sharing calibration with your team
-
-To share calibration entries, add them to `.deepreview.yml` under the `calibration:` key:
-
-```yaml
-# .deepreview.yml
-threatModel: localhost-only
-calibration:
-  settings:
-    expiryDays: 60
-  entries:
-    - id: "shared-001"
-      pattern: "missing authentication"
-      context: "localhost-only server"
-      originalSeverity: "warning"
-      adjustedSeverity: "suggestion"
-      observedCount: 4
-      lastConfirmed: "2026-06-28"
-      createdAt: "2026-06-01"
-```
-
-Local entries override shared entries when both match the same `pattern` + `context`.
 
 ### Review agents
 
@@ -159,6 +96,17 @@ Local entries override shared entries when both match the same `pattern` + `cont
 - `gh` CLI (only for PR commands)
 
 ## Configuration
+
+### Threat model
+
+Reviewers calibrate severity using the project's version and deployment model. Set the
+deployment model explicitly in `.deepreview.yml` at the repo root:
+
+```yaml
+threatModel: localhost-only # localhost-only | internal-network | public-facing | library
+```
+
+Without it, deepreview infers one from the version and package visibility.
 
 ### Verification (formatting, linting, tests)
 
@@ -192,8 +140,8 @@ cycles) before reporting the failure.
 - **Command and agents.** Claude Code discovers `commands/` and `agents/` from the plugin
   manifest. The orchestrator in `commands/deepreview.md` dispatches agents with the Agent
   tool's `subagent_type` (`deepreview:<agent-name>`).
-- **MCP server.** `mcp-server/` exposes the logic in `src/` as five MCP tools (`route_diff`,
-  `post_review`, `build_prior_review`, `calibration_load`, `calibration_save`), started via
+- **MCP server.** `mcp-server/` exposes the logic in `src/` as three MCP tools (`route_diff`,
+  `post_review`, `build_prior_review`), started via
   `.mcp.json` when the plugin is enabled. The bundle `mcp-server/dist/index.mjs` is committed so
   the plugin works with no build step.
 - **Agent permissions.** Claude Code limits subagents by tool (`Read`, `Write`, `Edit`, `Bash`),

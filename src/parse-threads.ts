@@ -1,4 +1,3 @@
-import matter from "gray-matter";
 import yaml from "js-yaml";
 import type { Finding } from "./diff-classifier.ts";
 
@@ -9,17 +8,32 @@ export interface ParsedThreads {
 }
 
 /**
- * gray-matter engine restricted to safe YAML parsing (no !!js/function etc.).
+ * Safe YAML parsing (no !!js/function etc.).
  * FAILSAFE_SCHEMA returns all scalars as strings — numeric fields (line, startLine)
  * are coerced to number downstream in parseThreads. This is intentional.
  */
-const safeYamlEngine = (s: string): Record<string, unknown> => {
+function parseSafeYaml(s: string): Record<string, unknown> {
   const result: unknown = yaml.load(s, { schema: yaml.FAILSAFE_SCHEMA });
   if (result === null || result === undefined || typeof result !== "object") return {};
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Why: narrowed to object via typeof guard above; FAILSAFE_SCHEMA always yields a plain object
   return result as Record<string, unknown>;
-};
-const matterOptions = { engines: { yaml: safeYamlEngine } };
+}
+
+/**
+ * Split one document into its YAML frontmatter data and body.
+ * A document opens with a "---" line and closes its frontmatter with the next "---" line.
+ * Without a closing line there is no frontmatter: data is empty and the body is the whole doc.
+ */
+function parseFrontmatter(doc: string): { data: Record<string, unknown>; content: string } {
+  const lines = doc.split("\n");
+  if (lines[0]?.trim() !== "---") return { data: {}, content: doc };
+  const close = lines.findIndex((line, i) => i > 0 && line.trim() === "---");
+  if (close === -1) return { data: {}, content: doc };
+  return {
+    data: parseSafeYaml(lines.slice(1, close).join("\n")),
+    content: lines.slice(close + 1).join("\n"),
+  };
+}
 
 /** Build a Finding from parsed frontmatter data and body content. */
 function buildFinding(
@@ -62,15 +76,15 @@ function parseThreads(content: string): ParsedThreads {
   const documents = splitDocuments(content);
 
   for (const doc of documents) {
-    let parsed: matter.GrayMatterFile<string>;
+    let parsed: { data: Record<string, unknown>; content: string };
     try {
-      parsed = matter(doc, matterOptions);
+      parsed = parseFrontmatter(doc);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       console.warn(`Skipping malformed finding: ${message}`);
       continue;
     }
-    const data = parsed.data as Record<string, unknown>;
+    const { data } = parsed;
 
     // Handle summary documents
     if (String(data.summary).toLowerCase() === "true") {

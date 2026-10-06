@@ -1,35 +1,11 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { execSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { z } from "zod";
 import { postReview } from "../../src/post-review.ts";
 import { buildPriorReview } from "../../src/build-prior-review.ts";
 import { routeDiff } from "../../src/route-diff.ts";
-import {
-  type CalibrationEntry,
-  type CalibrationSettings,
-  loadCalibration,
-  formatCalibrationPreamble,
-  writeCalibration,
-} from "../../src/calibration.ts";
-
-/**
- * Resolve the main repository root (not a worktree root) from a working directory.
- * Falls back to the given directory if git resolution fails.
- */
-function resolveRepoRoot(cwd: string): string {
-  try {
-    const gitCommonDir = execSync("git rev-parse --git-common-dir", {
-      cwd,
-      encoding: "utf-8",
-    }).trim();
-    return resolve(cwd, gitCommonDir).replace(/\/\.git$/u, "");
-  } catch {
-    return cwd;
-  }
-}
 
 function textResult(text: string): { content: { type: "text"; text: string }[] } {
   return { content: [{ type: "text", text }] };
@@ -121,57 +97,6 @@ server.registerTool(
         cwd: process.cwd(),
       });
       return textResult(summary);
-    } catch (err) {
-      return errorResult(err);
-    }
-  },
-);
-
-server.registerTool(
-  "calibration_load",
-  {
-    description:
-      "Load per-project calibration entries (learned severity adjustments from prior " +
-      "review sessions). Returns active entries, expired entries needing " +
-      "re-confirmation, and a formatted preamble for reviewer injection.",
-    inputSchema: {},
-  },
-  () => {
-    try {
-      const repoRoot = resolveRepoRoot(process.cwd());
-      const { active, expired } = loadCalibration(repoRoot);
-      const preamble = formatCalibrationPreamble(active);
-      return textResult(JSON.stringify({ active, expired, preamble }));
-    } catch (err) {
-      return errorResult(err);
-    }
-  },
-);
-
-server.registerTool(
-  "calibration_save",
-  {
-    description:
-      "Save calibration entries to .ai/deepreview/calibration.yml (local, unversioned). " +
-      "Always writes to local — never modifies .deepreview.yml.",
-    inputSchema: {
-      entries: z.string().describe("JSON array of CalibrationEntry objects to save"),
-      expiry_days: z
-        .number()
-        .int()
-        .positive()
-        .optional()
-        .describe("Expiry window in days (default: 30)"),
-    },
-  },
-  ({ entries, expiry_days }) => {
-    try {
-      const repoRoot = resolveRepoRoot(process.cwd());
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Why: JSON.parse returns any; schema is validated by the caller (orchestrator command)
-      const parsedEntries = JSON.parse(entries) as CalibrationEntry[];
-      const settings: CalibrationSettings = { expiryDays: expiry_days ?? 30 };
-      writeCalibration(repoRoot, { version: 1, settings, entries: parsedEntries });
-      return textResult(JSON.stringify({ written: `${repoRoot}/.ai/deepreview/calibration.yml` }));
     } catch (err) {
       return errorResult(err);
     }
