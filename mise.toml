@@ -8,6 +8,16 @@ bun build mcp-server/src/index.ts --outfile mcp-server/dist/index.mjs --target n
 chmod +x mcp-server/dist/index.mjs
 """
 
+[tasks.reinstall]
+description = "Reinstall the deepreview plugin from its marketplace (restart Claude Code after)"
+depends = ["build"]
+run = """
+claude plugin marketplace update deepreview-claude
+claude plugin uninstall deepreview@deepreview-claude || true
+claude plugin install deepreview@deepreview-claude
+echo "Done. Restart Claude Code to load the new version."
+"""
+
 [tasks.fmt]
 description = "Format repo"
 depends = ["fmt:*"]
