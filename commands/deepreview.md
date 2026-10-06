@@ -22,24 +22,32 @@ Classify "$ARGUMENTS":
 Determine REPO_ROOT — the main repository root (not a worktree root). Run:
 `REPO_ROOT=$(realpath "$(git rev-parse --git-common-dir)" | sed 's|/\.git$||')`
 
+MODE=pr: resolve which repo the PR lives in. The MCP tools use the same `gh` default, so everything stays consistent.
+
+- Run `gh repo view --json nameWithOwner --jq .nameWithOwner` and save the output as OWNER_REPO.
+- Run `gh repo view "$(git remote get-url origin)" --json nameWithOwner --jq .nameWithOwner` and save the output as ORIGIN_REPO.
+- If OWNER_REPO differs from ORIGIN_REPO, ask: "PR #$ARGUMENTS resolves to $OWNER_REPO, not origin ($ORIGIN_REPO). Continue? If this is the wrong repo, run `gh repo set-default <owner/repo>` and try again." STOP unless the user says yes.
+
+MODE=branch: find the base. Run `git rev-parse --abbrev-ref origin/HEAD` and save the output as DEFAULT_BRANCH (for example `origin/main`). If it fails, set DEFAULT_BRANCH=main. Set BASE_REF to the output of `git merge-base HEAD $DEFAULT_BRANCH`.
+
 Set SESSION_DIR based on mode:
 
 - LOOP=true (any mode): SESSION_DIR="$REPO_ROOT/.ai/deepreview/loop-iter1-$(date +%Y-%m-%d-%H%M%S)"
-- MODE=pr: SESSION_DIR="$REPO_ROOT/.ai/deepreview/$ARGUMENTS-$(date +%Y-%m-%d)"
+- MODE=pr: SESSION_DIR="$REPO_ROOT/.ai/deepreview/$ARGUMENTS-$(date +%Y-%m-%d-%H%M%S)"
 - MODE=files: SESSION_DIR="$REPO_ROOT/.ai/deepreview/files-$(date +%Y-%m-%d-%H%M%S)"
-- MODE=branch: SESSION_DIR="$REPO_ROOT/.ai/deepreview/$(git branch --show-current)-$(date +%Y-%m-%d)"
+- MODE=branch: SESSION_DIR="$REPO_ROOT/.ai/deepreview/$(git branch --show-current)-$(date +%Y-%m-%d-%H%M%S)"
 
 Create the directory with `mkdir -p $SESSION_DIR`
 
 If LOOP is true, set ITERATION=1, ALL_SESSION_DIRS=[$SESSION_DIR], CONSECUTIVE_ZERO_NEW=0, EXPIRED_ENTRIES=[], ITERATION_LIMIT=5, and:
 
 - MODE=pr: the loop edits local files, so the PR branch must be checked out. Run `gh pr view $ARGUMENTS --json headRefName,baseRefName`. If `headRefName` differs from `git branch --show-current`, tell the user "Check out the PR branch first (`gh pr checkout $ARGUMENTS`)." and STOP. Set BASE_REF to the output of `git merge-base HEAD origin/<baseRefName>`.
-- MODE=branch: set BASE_REF=main.
+- MODE=branch: BASE_REF is already set.
 
 STEP 2: PREPARE INPUT
 
 - MODE=pr: run `gh pr diff $ARGUMENTS > $SESSION_DIR/input.txt`
-- MODE=branch: run `git diff main > $SESSION_DIR/input.txt`
+- MODE=branch: run `git diff $BASE_REF > $SESSION_DIR/input.txt`
 - MODE=files: concatenate all specified files into $SESSION_DIR/input.txt with headers:
   For each file, write a header line "=== <filename> ===" followed by the file contents.
   Use: `for f in <files>; do echo "=== $f ===" >> $SESSION_DIR/input.txt; cat "$f" >> $SESSION_DIR/input.txt; echo >> $SESSION_DIR/input.txt; done`
@@ -49,7 +57,6 @@ Check if input.txt is empty (0 bytes). If empty, tell the user "Nothing to revie
 MODE=pr only, set PR_NUMBER=$ARGUMENTS and gather PR context:
 
 - Run `gh pr view $PR_NUMBER --json headRefOid --jq .headRefOid` and save the output as PR_HEAD_SHA.
-- Run `gh repo view --json owner,name --jq '.owner.login + "/" + .name'` and save the output as OWNER_REPO.
 - Run `gh pr view $PR_NUMBER --json title,body,url,headRefOid,comments,reviews > $SESSION_DIR/pr-meta.json`. If it fails, warn the user and continue.
 - Call the `mcp__deepreview__build_prior_review` tool with `pr_number` set to $PR_NUMBER and `output_path` set to "$SESSION_DIR/prior-review.md". Save its return string as BUILD_PRIOR_SUMMARY. If it fails, warn the user, set BUILD_PRIOR_SUMMARY to the error, and continue.
 - If "$SESSION_DIR/prior-review.md" exists and is non-empty, set PRIOR_REVIEW_PREAMBLE to this literal string:
@@ -68,7 +75,7 @@ Otherwise set PRIOR_REVIEW_PREAMBLE="". In MODE=branch and MODE=files, PRIOR_REV
 Set INPUT_DESCRIPTION based on mode:
 
 - MODE=pr: "a PR diff"
-- MODE=branch: "a branch diff against main"
+- MODE=branch: "a branch diff against $DEFAULT_BRANCH"
 - MODE=files: "the following files: <list of filenames>"
 
 STEP 2a: EXTRACT PROJECT CONTEXT
