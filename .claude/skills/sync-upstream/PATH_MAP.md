@@ -23,8 +23,7 @@ Keep these when reconciling. Do not delete them because upstream lacks them.
 | This repo | Notes |
 |---|---|
 | `agents/deepreview-summary.md` | Final review summary (description, assessment, issue table, GitHub links for PRs). |
-| `commands/deepreview.md` | Local rework. `/deepreview <PR#>` absorbed upstream's `/deepreview-pr-review`: prior-review flags and fetch, `pr-meta.json`, the summary (STEP 7a, all modes), the post/apply choice (STEPs 8-10), and the preview + "yes" before posting. Do not overwrite this file from upstream. Merge upstream changes into it by hand. |
-| STEP 5a in `commands/deepreview-quick.md` | Dispatches `deepreview-summary` and prints it. Re-apply after overwriting from upstream. |
+| `commands/deepreview.md` | Local rework and the only command. Flags: `--quick`, `--full`, `--loop`. Holds PR mode (prior-review fetch, `pr-meta.json`, post/apply choice, preview + "yes" before posting), the summary (STEP 7a), and the loop (STEPs L1-L4). Do not overwrite this file from upstream. Merge upstream changes into it by hand. |
 | `src/review-guard.ts`, `src/review-guard.test.ts`, and its call in `src/graphql.ts` | Blocks any GraphQL call that would submit a PR review. Keep the call in `graphql()` when taking upstream changes to `src/graphql.ts`. |
 
 ## Merged on purpose (upstream file → where it lives here)
@@ -32,11 +31,15 @@ Keep these when reconciling. Do not delete them because upstream lacks them.
 | Upstream path | This repo |
 |---|---|
 | `.opencode/commands/deepreview-pr-review.md` | PR mode of `commands/deepreview.md`. Port upstream changes there. Do not recreate the file. |
+| `.opencode/commands/deepreview-quick.md` | `--quick` in `commands/deepreview.md`. Do not recreate the file. |
+| `.opencode/commands/deepreview-loop.md` | `--loop` (STEPs L1-L4) in `commands/deepreview.md`. Port loop logic changes there. Do not recreate the file. |
 
 ## Excluded on purpose (do not port)
 
 | Upstream path | Why excluded |
 |---|---|
+| `.opencode/commands/deepreview-spec.md`, `.opencode/commands/deepreview-spec-loop.md`, `.opencode/agents/deepreview-spec-*.md` | Spec review removed on purpose. |
+| `--context <file>`, `--no-prior`, `--prior-review <file>` flags in any upstream command | Removed on purpose. Do not re-add when porting. |
 | `src/setup.ts`, `src/setup.test.ts` | OpenCode-specific install/symlink step. The plugin manifest (`.claude-plugin/`) makes this unnecessary in Claude Code — see README's "no separate setup/symlink step" note. |
 | `.github/workflows/*`, `.github/scripts/*` | Upstream's npm/OpenCode release pipeline. This repo publishes via the Claude Code plugin marketplace instead. |
 | `.shellcheckrc`, `mise.lock` | No shell scripts to lint here; lockfile intentionally not vendored. |

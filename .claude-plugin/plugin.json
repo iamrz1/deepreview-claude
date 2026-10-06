@@ -1,13 +1,13 @@
 {
   "name": "deepreview",
   "displayName": "DeepReview",
-  "version": "0.1.0",
-  "description": "Multi-agent parallel code/spec review. Spawns specialized review agents, cross-validates findings, synthesizes results, and produces an actionable implementation plan.",
+  "version": "0.2.0",
+  "description": "Multi-agent parallel code review. Spawns specialized review agents, cross-validates findings, synthesizes results, and produces an actionable implementation plan.",
   "author": {
     "name": "Mark Lee"
   },
   "repository": "https://github.com/iamrz1/deepreview-claude",
   "license": "MIT",
-  "keywords": ["code-review", "multi-agent", "spec-review"],
+  "keywords": ["code-review", "multi-agent"],
   "mcpServers": "./.mcp.json"
 }

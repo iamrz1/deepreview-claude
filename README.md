@@ -1,6 +1,6 @@
 # deepreview (Claude Code plugin)
 
-Multi-agent parallel code/spec review for [Claude Code](https://claude.com/claude-code). Spawns
+Multi-agent parallel code review for [Claude Code](https://claude.com/claude-code). Spawns
 specialized review agents, cross-validates findings, synthesizes results, and produces an
 actionable implementation plan.
 
@@ -27,25 +27,12 @@ plugin manifest, so no separate setup/symlink step is needed (unlike the OpenCod
 ## Usage
 
 ```
-/deepreview                   # Review current branch vs main
-/deepreview 123               # Review PR #123: summary, then post as pending review and/or apply fixes
-/deepreview --prior-review findings.md 123  # Include manual prior review
-/deepreview --no-prior 123                  # Skip auto-fetching prior context from GitHub
-/deepreview file1.ts file2.ts # Review specific files
-/deepreview --context decisions.md   # Review with design context (suppresses known decisions)
-/deepreview --full            # Force the full pipeline (skip auto-detection)
-
-/deepreview-quick             # Abbreviated review (single-pass, 3 subagents)
-/deepreview-quick 123         # Abbreviated review of PR #123
-
-/deepreview-loop              # Review + fix loop (repeats until clean or 5 iterations)
-/deepreview-loop 123          # Same, targeting a PR
-/deepreview-loop --context decisions.md       # Loop with design context
-/deepreview-spec-loop --context decisions.md spec.md  # Spec loop with design context
-
-/deepreview-spec spec.md                  # Spec-focused review (completeness, consistency, feasibility)
-/deepreview-spec --context decisions.md spec.md  # Spec review with design context
-/deepreview-spec-loop spec.md             # Spec review + fix loop
+/deepreview                # Review current branch vs main
+/deepreview 123            # Review PR #123
+/deepreview file1.ts       # Review specific files
+/deepreview --quick        # Force the single-pass reviewer
+/deepreview --full         # Force the full pipeline
+/deepreview --loop         # Review, apply all fixes, re-review until clean (also works with a PR or files)
 ```
 
 Given a PR number, `/deepreview` reads existing PR comments and review threads so it
@@ -60,16 +47,17 @@ prints the exact comments and waits for a "yes". Comments are always posted as a
 **pending** review. deepreview never submits it. The MCP server blocks any submit call,
 so you always make the final call in the GitHub UI.
 
-All commands accept a branch diff, PR number, or file path(s). The `-loop` variants
-apply fixes automatically and re-review until no findings remain. Pauses on plateaus
-(same finding persists across iterations).
+Without `--loop`, deepreview always asks before applying fixes. With `--loop`, it prints
+each round's summary, applies every fix without asking, and reviews again. It stops when
+no new findings appear, and asks you on deadlocks, failed lint/tests, diff growth, or
+after 5 rounds. `--loop` never posts to GitHub. For a PR, check out its branch first.
 
 For changes that are small in _effective_ size, `/deepreview` automatically uses the
 abbreviated path (single-pass reviewer, ~80% fewer tokens). Effective size discounts
 generated, mechanical, and snapshot churn so a large protobuf/codegen/snapshot refactor
 still routes here, while a high-stakes change (auth, migrations, concurrency, public
-API) always gets the full pipeline regardless of size. Use `--full` to force the full
-pipeline.
+API) always gets the full pipeline regardless of size. Use `--full` or `--quick` to
+override the choice.
 
 ## Pipeline
 
@@ -97,7 +85,7 @@ its own context, keeping token usage minimal.
 deepreview learns from validator severity adjustments over time. When validators
 consistently downgrade the same category of finding (e.g., "missing auth" in a
 localhost-only tool), the system proposes calibration entries at the end of each
-review session.
+`--loop` run. Calibration is loaded and learned in `--loop` runs only.
 
 ### How it works
 
@@ -153,15 +141,15 @@ Local entries override shared entries when both match the same `pattern` + `cont
 
 ### Review agents
 
-| Agent                       | Code review                            | Spec review                                  |
-| --------------------------- | --------------------------------------- | --------------------------------------------- |
-| correctness / completeness  | Logic bugs, edge cases, error handling  | Gaps, missing edge cases, undefined behavior  |
-| security / consistency      | Vulnerabilities, threat vectors         | Contradictions, name mismatches, type drift   |
-| architecture                | Patterns, coupling, complexity          | Patterns, coupling, complexity                |
-| maintainability / —         | Naming, nesting, dead code, style       | —                                              |
-| docs                        | Comment quality, stale claims           | Comment quality, stale claims                 |
-| compatibility / feasibility | Breaking changes, API contracts         | Implicit dependencies, can it be built        |
-| performance / —             | N+1 queries, leaks, hot paths           | —                                              |
+| Agent           | Focus                                  |
+| --------------- | -------------------------------------- |
+| correctness     | Logic bugs, edge cases, error handling |
+| security        | Vulnerabilities, threat vectors        |
+| architecture    | Patterns, coupling, complexity         |
+| maintainability | Naming, nesting, dead code, style      |
+| docs            | Comment quality, stale claims          |
+| compatibility   | Breaking changes, API contracts        |
+| performance     | N+1 queries, leaks, hot paths          |
 
 ## Requirements
 

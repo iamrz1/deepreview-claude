@@ -24,7 +24,6 @@ For each fix in the plan, in the order specified by the "Order of Operations" se
 2. Apply the code change exactly as specified in the plan
    - For fixes marked `**Validation:** revised`, the `**Code change:**` field contains the validator's corrected version — apply it normally. Use `APPLIED (revised):` in your response.
 3. **Globalize check:** After applying, check whether other files _listed in input.txt or the plan_ have the same pattern. If so, apply the equivalent fix there too. Do NOT search the broader codebase. To identify "listed files": for diff inputs, use files from `diff --git a/... b/...` headers; for concatenated file inputs, use files from `=== filename ===` headers. Common cases:
-   - A loop command fix that applies to the other loop command (code-loop ↔ spec-loop)
    - A prompt/contract change affecting multiple agent files
    - A variable rename or policy change referenced in multiple files
 4. Run `git diff <file>` to verify the edit looks correct
