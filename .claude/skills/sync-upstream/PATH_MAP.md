@@ -16,6 +16,15 @@ holding — it's the thing that saves the next sync from re-deriving all of this
 | `.opencode/commands/*.md` | `commands/*.md` | Same filenames. Same frontmatter caveat as agents. |
 | `src/*.ts` / `src/*.test.ts` | `src/*.ts` / `src/*.test.ts` | Platform-agnostic review logic, shared verbatim in most cases. If the repo file has no local drift from the old upstream content, a direct overwrite with the new upstream content is safe. |
 
+## Local-only additions (no upstream counterpart)
+
+Keep these when reconciling. Do not delete them because upstream lacks them.
+
+| This repo | Notes |
+|---|---|
+| `agents/deepreview-pr-summary.md` | Final PR summary (description, assessment, issue table with GitHub links). |
+| STEP 7a in `commands/deepreview.md` and `commands/deepreview-pr-review.md` | Dispatches `deepreview-pr-summary`. Also adds `pr-meta.json`, `OWNER_REPO`, and `PR_HEAD_SHA` setup in STEP 2 of both, plus a `build_prior_review` call in `deepreview.md`. Re-apply after overwriting either command from upstream. |
+
 ## Excluded on purpose (do not port)
 
 | Upstream path | Why excluded |

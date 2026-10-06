@@ -50,6 +50,11 @@ plugin manifest, so no separate setup/symlink step is needed (unlike the OpenCod
 /deepreview-spec-loop spec.md             # Spec review + fix loop
 ```
 
+When given a PR number, `/deepreview` and `/deepreview-pr-review` end with a PR summary:
+what the PR does, whether it does it well (approach, correctness, and fit with the
+codebase), what earlier reviewers asked for, and an issue table. Each row links to the
+exact line on GitHub, and rows follow the order of GitHub's "Files changed" tab.
+
 All commands accept a branch diff, PR number, or file path(s). The `-loop` variants
 apply fixes automatically and re-review until no findings remain. Pauses on plateaus
 (same finding persists across iterations).

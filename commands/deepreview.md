@@ -38,6 +38,15 @@ STEP 2: PREPARE INPUT
 
 Check if input.txt is empty (0 bytes). If empty, tell the user "Nothing to review." and STOP.
 
+MODE=pr only, gather PR context for the summary in STEP 7a:
+
+- Run `gh pr view $ARGUMENTS --json title,body,url,headRefOid,comments,reviews > $SESSION_DIR/pr-meta.json`
+- Run `gh pr view $ARGUMENTS --json headRefOid --jq .headRefOid` and save the output as PR_HEAD_SHA.
+- Run `gh repo view --json owner,name --jq '.owner.login + "/" + .name'` and save the output as OWNER_REPO.
+- Call the `mcp__deepreview__build_prior_review` tool with `pr_number` set to $ARGUMENTS and `output_path` set to "$SESSION_DIR/prior-review.md".
+
+If any of these fail, warn the user and continue. The summary step will work with what exists.
+
 Set INPUT_DESCRIPTION based on mode:
 
 - MODE=pr: "a PR diff"
@@ -100,7 +109,7 @@ Task 1 — Use the Agent tool with subagent_type="deepreview:deepreview-quick-re
 Wait for it to return. Record the stats line.
 
 If this task fails (agent error or timeout): tell the user "Quick review failed." and STOP.
-If the stats line reports 0 critical, 0 warnings, 0 suggestions: tell the user "No issues found." and STOP.
+If the stats line reports 0 critical, 0 warnings, 0 suggestions: tell the user "No issues found." If MODE=pr, run STEP 7a, print PR_SUMMARY verbatim (skip the path line), then STOP. Otherwise STOP.
 
 STEP 4-QUICK: DISPATCH IMPLEMENTATION PLAN (1 task)
 Task 2 — Use the Agent tool with subagent_type="deepreview:deepreview-planner":
@@ -114,7 +123,7 @@ Task 3 — Use the Agent tool with subagent_type="deepreview:deepreview-plan-val
 
 If this task fails, emit a warning: "Plan validation failed — applying unvalidated plan." and set PLAN_FILE="$SESSION_DIR/implementation-plan.md". Otherwise set PLAN_FILE="$SESSION_DIR/validated-plan.md" and record the stats line.
 
-Go to STEP 8 (PRESENT RESULTS).
+Go to STEP 7a (PR SUMMARY).
 
 STEP 3: DISPATCH STAGE 1 — INITIAL REVIEW (7 parallel tasks)
 Dispatch ALL SEVEN of these Agent tool calls simultaneously in a single message:
@@ -186,9 +195,18 @@ Task 17 — Use the Agent tool with subagent_type="deepreview:deepreview-plan-va
 
 If this task fails (agent error, timeout, or does not produce validated-plan.md), emit a warning: "Plan validation failed — applying unvalidated plan." and set PLAN_FILE="$SESSION_DIR/implementation-plan.md". Otherwise set PLAN_FILE="$SESSION_DIR/validated-plan.md" and record the stats line.
 
+STEP 7a: PR SUMMARY (MODE=pr only, 1 task)
+Skip this step unless MODE=pr.
+
+Task — Use the Agent tool with subagent_type="deepreview:deepreview-pr-summary":
+"Read the synthesis at $SESSION_DIR/synthesis.md, the diff at $SESSION_DIR/input.txt, the PR metadata at $SESSION_DIR/pr-meta.json, and the prior review at $SESSION_DIR/prior-review.md (skip any that don't exist). OWNER_REPO=$OWNER_REPO, PR_NUMBER=$ARGUMENTS, HEAD_SHA=$PR_HEAD_SHA. Write the summary to $SESSION_DIR/pr-summary.md."
+
+Record its response as PR_SUMMARY. If it fails, warn the user and continue.
+
 STEP 8: PRESENT RESULTS
 Show the user:
 
+- MODE=pr: PR_SUMMARY first, printed verbatim (skip the path line)
 - Session directory: $SESSION_DIR/
 - Pipeline: abbreviated (single-pass) or full (7 reviewers + cross-validation)
 - For full pipeline: Which reviewers completed (and any that failed)
@@ -206,6 +224,6 @@ Show the user the list of files changed from the applier's return.
 IMPORTANT RULES:
 
 - Do NOT read any files in $SESSION_DIR yourself. Ever.
-- Use ONLY the file paths and stats/summary lines returned by subagents.
+- Use ONLY the file paths, stats/summary lines, and PR_SUMMARY returned by subagents.
 - If a subagent fails, note which one failed and continue with what you have.
 - If all 7 reviewers fail in Stage 1, tell the user and STOP.

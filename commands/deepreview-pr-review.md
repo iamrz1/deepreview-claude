@@ -48,6 +48,12 @@ Check if input.txt is empty (0 bytes). If empty, tell the user "Nothing to revie
 Get and store the PR head SHA:
 Run `gh pr view "$PR_NUMBER" --json headRefOid --jq .headRefOid` and save the output as PR_HEAD_SHA.
 
+Get the repo owner/name:
+Run `gh repo view --json owner,name --jq '.owner.login + "/" + .name'` and save as OWNER_REPO.
+
+Save PR metadata for the summary in STEP 7a:
+Run `gh pr view "$PR_NUMBER" --json title,body,url,headRefOid,comments,reviews > "$SESSION_DIR/pr-meta.json"`. If it fails, warn the user and continue.
+
 If "$SESSION_DIR/prior-review.md" exists AND is non-empty (> 0 bytes):
 
 1. Build PRIOR_REVIEW_PREAMBLE as the following literal string:
@@ -130,12 +136,9 @@ Check synthesis result: the synthesizer "failed" if synthesis.md does not exist 
 If the synthesizer failed AND "$SESSION_DIR/prior-review.md" exists and is non-empty, tell the user "Synthesis failed. Formatting prior review findings only." and proceed to STEP 6 using the prior-review-only prompt variant.
 If the synthesizer failed AND "$SESSION_DIR/prior-review.md" does not exist or is empty, tell the user "Synthesis failed and no prior review available. Cannot continue." and STOP.
 
-If stats show 0 critical, 0 warnings, 0 suggestions AND "$SESSION_DIR/prior-review.md" does not exist or is empty, tell the user "No findings to post. PR looks good!" and STOP.
+If stats show 0 critical, 0 warnings, 0 suggestions AND "$SESSION_DIR/prior-review.md" does not exist or is empty, tell the user "No findings to post. PR looks good!", run STEP 7a, print PR_SUMMARY verbatim (skip the path line), and STOP.
 
 STEP 6: FORMAT THREADS (1 task)
-
-Get the repo owner/name:
-Run `gh repo view --json owner,name --jq '.owner.login + "/" + .name'` and save as OWNER_REPO.
 
 Determine the formatter variant using this decision table:
 
@@ -170,9 +173,16 @@ Use the `mcp__deepreview__post_review` tool:
 - `threads_path`: The absolute path to `$SESSION_DIR/threads.md`
 - `pr_number`: $PR_NUMBER (the PR number)
 
+STEP 7a: PR SUMMARY (1 task)
+Task — Use the Agent tool with subagent_type="deepreview:deepreview-pr-summary":
+"Read the synthesis at $SESSION_DIR/synthesis.md, the diff at $SESSION_DIR/input.txt, the PR metadata at $SESSION_DIR/pr-meta.json, and the prior review at $SESSION_DIR/prior-review.md (skip any that don't exist). OWNER_REPO=$OWNER_REPO, PR_NUMBER=$PR_NUMBER, HEAD_SHA=$PR_HEAD_SHA. Write the summary to $SESSION_DIR/pr-summary.md."
+
+Record its response as PR_SUMMARY. If it fails, warn the user and continue.
+
 STEP 8: PRESENT RESULTS
 Show the user:
 
+- PR_SUMMARY first, printed verbatim (skip the path line)
 - Session directory: $SESSION_DIR/
 - Which reviewers completed (and any that failed)
 - Prior review context: $BUILD_PRIOR_SUMMARY (or "Skipped (--no-prior)" if NO_PRIOR was set)
@@ -183,7 +193,7 @@ Show the user:
 IMPORTANT RULES:
 
 - Do NOT read any files in $SESSION_DIR yourself. Ever.
-- Use ONLY the file paths and stats/summary lines returned by subagents.
+- Use ONLY the file paths, stats/summary lines, and PR_SUMMARY returned by subagents.
 - If a subagent fails, note which one failed and continue with what you have.
 - If all 7 reviewers fail in Stage 1, tell the user and STOP.
 - Do NOT submit the review. It stays pending.
