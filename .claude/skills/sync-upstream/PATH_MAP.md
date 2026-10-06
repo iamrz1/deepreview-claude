@@ -22,8 +22,10 @@ Keep these when reconciling. Do not delete them because upstream lacks them.
 
 | This repo | Notes |
 |---|---|
-| `agents/deepreview-pr-summary.md` | Final PR summary (description, assessment, issue table with GitHub links). |
-| PR mode of `commands/deepreview.md` | Local rework. `/deepreview <PR#>` absorbed upstream's `/deepreview-pr-review`: prior-review flags and fetch, `pr-meta.json`, the PR summary (STEP 7a), and post/apply choice (STEPs 8-10). Do not overwrite this file from upstream. Merge upstream changes into it by hand. |
+| `agents/deepreview-summary.md` | Final review summary (description, assessment, issue table, GitHub links for PRs). |
+| `commands/deepreview.md` | Local rework. `/deepreview <PR#>` absorbed upstream's `/deepreview-pr-review`: prior-review flags and fetch, `pr-meta.json`, the summary (STEP 7a, all modes), the post/apply choice (STEPs 8-10), and the preview + "yes" before posting. Do not overwrite this file from upstream. Merge upstream changes into it by hand. |
+| STEP 5a in `commands/deepreview-quick.md` | Dispatches `deepreview-summary` and prints it. Re-apply after overwriting from upstream. |
+| `src/review-guard.ts`, `src/review-guard.test.ts`, and its call in `src/graphql.ts` | Blocks any GraphQL call that would submit a PR review. Keep the call in `graphql()` when taking upstream changes to `src/graphql.ts`. |
 
 ## Merged on purpose (upstream file → where it lives here)
 

@@ -23387,6 +23387,17 @@ import { resolve as resolve3 } from "node:path";
 // src/graphql.ts
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+
+// src/review-guard.ts
+function assertNoReviewSubmit(query, variables) {
+  const input = variables.input;
+  const hasEvent = typeof input === "object" && input !== null && "event" in input;
+  if (query.includes("submitPullRequestReview") || /\bevent\s*:/u.test(query) || hasEvent) {
+    throw new Error("deepreview never submits PR reviews. Reviews must stay pending.");
+  }
+}
+
+// src/graphql.ts
 var execFileAsync = promisify(execFile);
 async function execFileWithInput(cmd, args, opts) {
   return new Promise((resolve, reject) => {
@@ -23425,6 +23436,7 @@ class GraphQLResponseError extends Error {
   }
 }
 async function graphql(query, variables = {}) {
+  assertNoReviewSubmit(query, variables);
   const body = JSON.stringify({ query, variables });
   let result;
   try {

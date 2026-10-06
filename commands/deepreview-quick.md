@@ -79,9 +79,16 @@ Task 3 — Use the Agent tool with subagent_type="deepreview:deepreview-plan-val
 
 If this task fails (agent error, timeout, or does not produce validated-plan.md), emit a warning: "Plan validation failed — applying unvalidated plan." and set PLAN_FILE="$SESSION_DIR/implementation-plan.md". Otherwise set PLAN_FILE="$SESSION_DIR/validated-plan.md" and record the stats line.
 
-STEP 6: PRESENT RESULTS
-Show the user:
+STEP 5a: SUMMARY (1 task)
+Use the Agent tool with subagent_type="deepreview:deepreview-summary":
+"The input is $INPUT_DESCRIPTION. Read the synthesis at $SESSION_DIR/synthesis.md and the input at $SESSION_DIR/input.txt. Write the summary to $SESSION_DIR/summary.md."
 
+Record its response as SUMMARY. If it fails, warn the user and continue.
+
+STEP 6: PRESENT RESULTS
+Always show the review before asking anything. Show the user:
+
+- SUMMARY, printed verbatim (skip the path line)
 - Session directory: $SESSION_DIR/
 - Pipeline: abbreviated (single-pass reviewer)
 - Stats from quick review (from Step 3)
@@ -98,5 +105,5 @@ Show the user the list of files changed from the applier's return.
 IMPORTANT RULES:
 
 - Do NOT read any files in $SESSION_DIR yourself. Ever.
-- Use ONLY the file paths and stats/summary lines returned by subagents.
+- Use ONLY the file paths, stats/summary lines, and SUMMARY returned by subagents.
 - If a subagent fails, note which one failed and continue with what you have.

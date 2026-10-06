@@ -1,5 +1,5 @@
 ---
-description: "Multi-agent parallel code review with cross-validation. For a PR, also summarizes it and can post a pending GitHub review"
+description: "Multi-agent parallel code review with cross-validation. Shows the review, then asks before applying fixes or posting a pending GitHub review"
 ---
 
 <!-- Ported from OpenCode deepreview. subagent_type values use the plugin-scoped form "deepreview:<agent-name>" per Claude Code's plugin agent namespacing (plugins-reference.md: "the agent agent-creator for the plugin with name plugin-dev will appear as plugin-dev:agent-creator"). -->
@@ -141,7 +141,7 @@ Task 3 — Use the Agent tool with subagent_type="deepreview:deepreview-plan-val
 
 If this task fails, emit a warning: "Plan validation failed — applying unvalidated plan." and set PLAN_FILE="$SESSION_DIR/implementation-plan.md". Otherwise set PLAN_FILE="$SESSION_DIR/validated-plan.md" and record the stats line.
 
-Go to STEP 8 (PRESENT RESULTS).
+Go to STEP 7a (SUMMARY).
 
 STEP 3: DISPATCH STAGE 1 — INITIAL REVIEW (7 parallel tasks)
 Dispatch ALL SEVEN of these Agent tool calls simultaneously in a single message:
@@ -215,20 +215,25 @@ Task 17 — Use the Agent tool with subagent_type="deepreview:deepreview-plan-va
 
 If this task fails (agent error, timeout, or does not produce validated-plan.md), emit a warning: "Plan validation failed — applying unvalidated plan." and set PLAN_FILE="$SESSION_DIR/implementation-plan.md". Otherwise set PLAN_FILE="$SESSION_DIR/validated-plan.md" and record the stats line.
 
-Go to STEP 8 (PRESENT RESULTS).
+Go to STEP 7a (SUMMARY).
 
-STEP 7a: PR SUMMARY (MODE=pr only, 1 task)
-Task — Use the Agent tool with subagent_type="deepreview:deepreview-pr-summary":
-"Read the synthesis at $SESSION_DIR/synthesis.md, the diff at $SESSION_DIR/input.txt, the PR metadata at $SESSION_DIR/pr-meta.json, and the prior review at $SESSION_DIR/prior-review.md (skip any that don't exist). OWNER_REPO=$OWNER_REPO, PR_NUMBER=$PR_NUMBER, HEAD_SHA=$PR_HEAD_SHA. Write the summary to $SESSION_DIR/pr-summary.md."
+STEP 7a: SUMMARY (1 task, every mode)
+MODE=pr — Use the Agent tool with subagent_type="deepreview:deepreview-summary":
+"The input is a PR. Read the synthesis at $SESSION_DIR/synthesis.md, the diff at $SESSION_DIR/input.txt, the PR metadata at $SESSION_DIR/pr-meta.json, and the prior review at $SESSION_DIR/prior-review.md (skip any that don't exist). OWNER_REPO=$OWNER_REPO, PR_NUMBER=$PR_NUMBER, HEAD_SHA=$PR_HEAD_SHA. Write the summary to $SESSION_DIR/summary.md."
 
-Record its response as PR_SUMMARY. If it fails, warn the user and continue.
+MODE=branch or MODE=files — Use the Agent tool with subagent_type="deepreview:deepreview-summary":
+"The input is $INPUT_DESCRIPTION. Read the synthesis at $SESSION_DIR/synthesis.md and the input at $SESSION_DIR/input.txt. Write the summary to $SESSION_DIR/summary.md."
 
-If the synthesis stats report 0 critical, 0 warnings, 0 suggestions: print PR_SUMMARY verbatim (skip the path line), tell the user "No new issues found.", and STOP.
+Record its response as SUMMARY. If it fails, warn the user and show the stats instead.
+
+If MODE=pr and the synthesis stats report 0 critical, 0 warnings, 0 suggestions: print SUMMARY verbatim (skip the path line), tell the user "No new issues found.", and STOP.
 
 STEP 8: PRESENT RESULTS
+Always show the review before doing anything else. Never post or apply without the user's answer.
+
 MODE=pr: show the user:
 
-- PR_SUMMARY, printed verbatim (skip the path line)
+- SUMMARY, printed verbatim (skip the path line)
 - Session directory: $SESSION_DIR/
 - Pipeline: abbreviated (single-pass) or full (7 reviewers + cross-validation), and any reviewers that failed
 - Prior review context: $BUILD_PRIOR_SUMMARY
@@ -237,6 +242,7 @@ MODE=pr: show the user:
 
 MODE=branch or MODE=files: show the user:
 
+- SUMMARY, printed verbatim (skip the path line)
 - Session directory: $SESSION_DIR/
 - Pipeline: abbreviated (single-pass) or full (7 reviewers + cross-validation)
 - For full pipeline: Which reviewers completed (and any that failed)
@@ -267,14 +273,21 @@ Otherwise use:
 Task — Use the Agent tool with subagent_type="deepreview:deepreview-review-formatter":
 "Read the synthesis at $SESSION_DIR/synthesis.md and the diff at $SESSION_DIR/input.txt. The PR is $OWNER_REPO#$PR_NUMBER, head SHA is $PR_HEAD_SHA. Write the formatted threads to $SESSION_DIR/threads.md."
 
-Then call the `mcp__deepreview__post_review` tool with `threads_path` set to the absolute path of `$SESSION_DIR/threads.md` and `pr_number` set to $PR_NUMBER.
+Preview before posting:
 
-Show the user the tool output (threads posted, any demotions) and remind them: "The review is PENDING. Submit it via the GitHub UI when ready."
+1. Call the `mcp__deepreview__post_review` tool with `threads_path` set to the absolute path of `$SESSION_DIR/threads.md`, `pr_number` set to $PR_NUMBER, and `dry_run` set to true.
+2. Run `cat "$SESSION_DIR/threads.md"` and print it to the user verbatim, followed by the dry-run output.
+3. Ask: "Post these comments to PR #$PR_NUMBER as a PENDING review? Nothing is submitted; you submit it in GitHub. (yes/no)"
+
+Only if the user says yes: call `mcp__deepreview__post_review` again with the same arguments and `dry_run` set to false. Show the user the tool output (threads posted, any demotions) and remind them: "The review is PENDING. Submit it via the GitHub UI when ready."
+
+If the user says no or asks for changes, do not post. Tell them threads.md can be edited and STEP 10 rerun.
 
 IMPORTANT RULES:
 
-- Do NOT read any files in $SESSION_DIR yourself. Ever.
-- Use ONLY the file paths, stats/summary lines, and PR_SUMMARY returned by subagents.
+- Do NOT read any files in $SESSION_DIR yourself, except printing threads.md verbatim in STEP 10.
+- Use ONLY the file paths, stats/summary lines, and SUMMARY returned by subagents.
 - If a subagent fails, note which one failed and continue with what you have.
 - If all 7 reviewers fail in Stage 1, tell the user and STOP.
-- Never submit a GitHub review. Posted reviews stay pending.
+- Never post review comments without showing them and getting a "yes" in STEP 10.
+- Never submit a GitHub review. Posted reviews stay pending. The MCP server also blocks submit calls.

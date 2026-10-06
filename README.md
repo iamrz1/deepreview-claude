@@ -55,6 +55,11 @@ for, and an issue table. Each row links to the exact line on GitHub, and rows fo
 order of GitHub's "Files changed" tab. It then asks whether to post the findings as a
 pending GitHub review, apply fixes locally, or both.
 
+Every review is shown to you before anything else happens. Before posting, deepreview
+prints the exact comments and waits for a "yes". Comments are always posted as a
+**pending** review. deepreview never submits it. The MCP server blocks any submit call,
+so you always make the final call in the GitHub UI.
+
 All commands accept a branch diff, PR number, or file path(s). The `-loop` variants
 apply fixes automatically and re-review until no findings remain. Pauses on plateaus
 (same finding persists across iterations).
