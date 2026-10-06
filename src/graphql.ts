@@ -1,5 +1,6 @@
 import { type ExecFileOptions, execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { assertNoReviewSubmit } from "./review-guard.ts";
 
 // oxlint-disable-next-line typescript/strict-void-return -- Why: promisify() overload resolution picks void-returning signature incorrectly
 export const execFileAsync = promisify(execFile);
@@ -65,6 +66,7 @@ export async function graphql<T = unknown>(
   query: string,
   variables: Record<string, unknown> = {},
 ): Promise<T> {
+  assertNoReviewSubmit(query, variables);
   const body = JSON.stringify({ query, variables });
   let result: string;
   try {

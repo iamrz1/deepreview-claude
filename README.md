@@ -28,7 +28,9 @@ plugin manifest, so no separate setup/symlink step is needed (unlike the OpenCod
 
 ```
 /deepreview                   # Review current branch vs main
-/deepreview 123               # Review PR #123
+/deepreview 123               # Review PR #123: summary, then post as pending review and/or apply fixes
+/deepreview --prior-review findings.md 123  # Include manual prior review
+/deepreview --no-prior 123                  # Skip auto-fetching prior context from GitHub
 /deepreview file1.ts file2.ts # Review specific files
 /deepreview --context decisions.md   # Review with design context (suppresses known decisions)
 /deepreview --full            # Force the full pipeline (skip auto-detection)
@@ -41,14 +43,22 @@ plugin manifest, so no separate setup/symlink step is needed (unlike the OpenCod
 /deepreview-loop --context decisions.md       # Loop with design context
 /deepreview-spec-loop --context decisions.md spec.md  # Spec loop with design context
 
-/deepreview-pr-review 123     # Review PR and post findings as a pending GitHub review
-/deepreview-pr-review --prior-review findings.md 123  # Include manual prior review
-/deepreview-pr-review --no-prior 123                  # Skip auto-fetching prior context from GitHub
-
 /deepreview-spec spec.md                  # Spec-focused review (completeness, consistency, feasibility)
 /deepreview-spec --context decisions.md spec.md  # Spec review with design context
 /deepreview-spec-loop spec.md             # Spec review + fix loop
 ```
+
+Given a PR number, `/deepreview` reads existing PR comments and review threads so it
+does not repeat them. It then prints a PR summary: what the PR does, whether it does it
+well (approach, correctness, and fit with the codebase), what earlier reviewers asked
+for, and an issue table. Each row links to the exact line on GitHub, and rows follow the
+order of GitHub's "Files changed" tab. It then asks whether to post the findings as a
+pending GitHub review, apply fixes locally, or both.
+
+Every review is shown to you before anything else happens. Before posting, deepreview
+prints the exact comments and waits for a "yes". Comments are always posted as a
+**pending** review. deepreview never submits it. The MCP server blocks any submit call,
+so you always make the final call in the GitHub UI.
 
 All commands accept a branch diff, PR number, or file path(s). The `-loop` variants
 apply fixes automatically and re-review until no findings remain. Pauses on plateaus
