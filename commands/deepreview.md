@@ -39,7 +39,7 @@ Set SESSION_DIR based on mode:
 
 Create the directory with `mkdir -p $SESSION_DIR`
 
-If LOOP is true, set ITERATION=1, ALL_SESSION_DIRS=[$SESSION_DIR], CONSECUTIVE_ZERO_NEW=0, EXPIRED_ENTRIES=[], ITERATION_LIMIT=5, and:
+If LOOP is true, set ITERATION=1, ALL_SESSION_DIRS=[$SESSION_DIR], CONSECUTIVE_ZERO_NEW=0, ITERATION_LIMIT=5, and:
 
 - MODE=pr: the loop edits local files, so the PR branch must be checked out. Run `gh pr view $ARGUMENTS --json headRefName,baseRefName`. If `headRefName` differs from `git branch --show-current`, tell the user "Check out the PR branch first (`gh pr checkout $ARGUMENTS`)." and STOP. Set BASE_REF to the output of `git merge-base HEAD origin/<baseRefName>`.
 - MODE=branch: BASE_REF is already set.
@@ -82,7 +82,7 @@ STEP 2a: EXTRACT PROJECT CONTEXT
 Build PROJECT_CONTEXT by extracting metadata (version, deployment model, publish status) from the repo:
 
 - Check for package.json or Cargo.toml to detect version and publish status
-- Check for .deepreview.yml to detect explicit deployment model (threat-model field)
+- Check for .deepreview.yml to detect explicit deployment model (`threatModel` field)
 - If no .deepreview.yml exists, infer deployment model: v0.x.0 and private packages are "internal-network", v1+.x.x and public are "public-facing", otherwise "unknown"
 - Format as:
 
@@ -101,8 +101,6 @@ Use this context to calibrate finding severity. For example:
 ```
 
 If metadata extraction fails or no version info is found, set PROJECT_CONTEXT="" (empty string).
-
-If LOOP is true, load learned calibration by calling the `mcp__deepreview__calibration_load` tool (no arguments). If `preamble` is non-empty, append it to PROJECT_CONTEXT. If `expired` is non-empty, store it in EXPIRED_ENTRIES for STEP L4. If the tool fails, continue without calibration.
 
 STEP 2b: BUILD PREAMBLES
 Set CONTEXT_PREAMBLE to "${PROJECT_CONTEXT}\n" (or "" if PROJECT_CONTEXT is empty), then append PRIOR_REVIEW_PREAMBLE. Reviewers receive CONTEXT_PREAMBLE. Validators do not, on purpose, so they verify claims without bias.
@@ -303,14 +301,14 @@ Parse the synthesis stats line. If it has the `| N new, N recurring, N regressio
 
 NOVELTY MODE (iteration 2+):
 
-- If `0 new` and `0 regression`: tell the user "deepreview --loop converged after $ITERATION iteration(s)." Go to STEP L4, then STOP.
+- If `0 new` and `0 regression`: tell the user "deepreview --loop converged after $ITERATION iteration(s)." STOP.
 - If `0 new`, increment CONSECUTIVE_ZERO_NEW. Otherwise reset it to 0.
 - If CONSECUTIVE_ZERO_NEW >= 2 and recurring > 0 and `0 regression`: tell the user "Deadlock: N recurring findings persist with no new issues across 2 iterations." Ask: "Skip these findings, give guidance, or stop?" Follow the answer.
 
 LEGACY MODE (iteration 1, or no novelty suffix):
 
 - From iteration 2, warn "Synthesizer did not return novelty metrics. Using legacy convergence detection."
-- If the stats report 0 critical, 0 warnings, 0 suggestions: tell the user "deepreview --loop complete after $ITERATION iteration(s). No findings remain." Go to STEP L4, then STOP.
+- If the stats report 0 critical, 0 warnings, 0 suggestions: tell the user "deepreview --loop complete after $ITERATION iteration(s). No findings remain." STOP.
 - From iteration 2, if the stats line equals the previous iteration's stats line, treat it as a deadlock and ask as above.
 
 STEP L2: PLAN AND APPLY
@@ -323,10 +321,10 @@ Show the user the files changed. If the applier reports VERIFICATION: FAIL, show
 
 - Revert: run `git checkout -- .`, re-run the planner without the failing fix (add it to SKIP_LIST) writing to `$SESSION_DIR/implementation-plan-retry.md`, run the plan validator on that file (tell it the SKIP_LIST findings were excluded on purpose), set PLAN_FILE, and run the applier again.
 - Continue: go to STEP L3.
-- Stop: go to STEP L4, then STOP.
+- Stop: STOP.
 
 STEP L3: NEXT ITERATION
-Set ITERATION = ITERATION + 1. If ITERATION > ITERATION_LIMIT, show the latest stats and ask "Continue for 5 more iterations, or stop?" On stop, go to STEP L4, then STOP. On continue, add 5 to ITERATION_LIMIT.
+Set ITERATION = ITERATION + 1. If ITERATION > ITERATION_LIMIT, show the latest stats and ask "Continue for 5 more iterations, or stop?" On stop, STOP. On continue, add 5 to ITERATION_LIMIT.
 
 Set SESSION_DIR="$REPO_ROOT/.ai/deepreview/loop-iter$ITERATION-$(date +%Y-%m-%d-%H%M%S)", run `mkdir -p $SESSION_DIR`, and append it to ALL_SESSION_DIRS.
 
@@ -335,7 +333,7 @@ Prepare fresh input:
 - MODE=pr or MODE=branch: run `git diff $BASE_REF > $SESSION_DIR/input.txt`
 - MODE=files: re-read the same files into `$SESSION_DIR/input.txt` as in STEP 2.
 
-If input.txt is empty, tell the user "Nothing left to review." Go to STEP L4, then STOP.
+If input.txt is empty, tell the user "Nothing left to review." STOP.
 
 If the new input.txt has more than 50% more lines than the previous iteration's, tell the user "Diff grew from ~N to ~M lines. The fixes may be adding more than they remove." Ask: "Continue, or revert the last iteration?" On revert, run `git checkout -- .` and STOP.
 
@@ -383,30 +381,9 @@ If LOOP_CONTEXT is non-empty, set SYNTH_PREAMBLE to "## Prior Findings for Novel
 
 Go to STEP 3.
 
-STEP L4: PROPOSE CALIBRATION UPDATES
-Skip this step if ITERATION is 1 and the loop exited clean.
-
-Read the reviewer files ($SESSION_DIR/review-\*.md) and synthesis.md from the last completed iteration. For each synthesis finding, check whether any reviewer flagged it at a HIGHER severity. Only consider downgrades.
-
-For each downgrade pattern: if it matches an existing calibration entry (active or in EXPIRED_ENTRIES), increment observedCount and set lastConfirmed to today. Otherwise propose a new entry with observedCount=1.
-
-If there are proposed or expired entries, call `mcp__deepreview__calibration_load` for the current entries and show:
-
-```
-Calibration update proposed:
-
-- NEW: "[pattern]" in [context]: [originalSeverity] → [adjustedSeverity]
-- UPDATED: "[pattern]" in [context]: observed N→N+1, re-confirmed
-- EXPIRED: "[pattern]" (last confirmed N days ago) — will be removed
-
-Accept these changes? [y/n/edit]
-```
-
-On yes, merge with the active entries (dropping expired ones) and call `mcp__deepreview__calibration_save`. On edit, let the user change the proposal, then save. On no, skip. If nothing changed, skip silently.
-
 IMPORTANT RULES:
 
-- Do NOT read any files in $SESSION_DIR yourself, except printing threads.md verbatim in STEP 10 and reading review/synthesis files in STEP L4.
+- Do NOT read any files in $SESSION_DIR yourself, except printing threads.md verbatim in STEP 10.
 - Use ONLY the file paths, stats/summary lines, and SUMMARY returned by subagents.
 - If a subagent fails, note which one failed and continue with what you have.
 - If all 7 reviewers fail in Stage 1, tell the user and STOP.
