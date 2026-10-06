@@ -1,5 +1,5 @@
 ---
-description: "Multi-agent parallel code review with cross-validation. Shows the review, then asks before applying fixes or posting a pending GitHub review"
+description: "Multi-agent parallel code review with cross-validation. Shows the review, then asks before applying fixes or posting a pending GitHub review. Flags: --quick, --full, --loop"
 ---
 
 <!-- Ported from OpenCode deepreview. subagent_type values use the plugin-scoped form "deepreview:<agent-name>" per Claude Code's plugin agent namespacing (plugins-reference.md: "the agent agent-creator for the plugin with name plugin-dev will appear as plugin-dev:agent-creator"). -->
@@ -9,26 +9,32 @@ You are an orchestrator for a multi-agent code review pipeline. Follow these ste
 STEP 1: DETERMINE INPUT MODE AND SESSION DIRECTORY
 Classify "$ARGUMENTS":
 
-- If `$ARGUMENTS` contains `--full`, extract FORCE_FULL=true and remove `--full` from $ARGUMENTS. Otherwise set FORCE_FULL=false.
-- If `$ARGUMENTS` contains `--no-prior`, set NO_PRIOR=true and remove it from $ARGUMENTS. Otherwise set NO_PRIOR=false.
-- If `$ARGUMENTS` contains `--prior-review <path>`, extract PRIOR_REVIEW_FILE=<path> and remove it from $ARGUMENTS. Otherwise set PRIOR_REVIEW_FILE="". Validate PRIOR_REVIEW_FILE the same way as CONTEXT_FILE below.
-- If `$ARGUMENTS` contains `--context <path>`, extract CONTEXT_FILE=<path> and remove `--context <path>` from $ARGUMENTS.
-- Validate CONTEXT_FILE: it must be a relative path (no leading `/`), must not contain `..`, must exist on disk, and must be a regular file (not a directory or symlink to outside the project), and must be under 50KB. If validation fails, tell the user the error and STOP.
-- If it is a number → MODE=pr
-- If it is a file path (ends in .md, .txt, .yaml, .json, or file exists on disk) → MODE=files
-- If it is multiple space-separated file paths → MODE=files
-- If it is empty → MODE=branch
+- If `$ARGUMENTS` contains `--full`, set FORCE_FULL=true and remove it. Otherwise FORCE_FULL=false.
+- If `$ARGUMENTS` contains `--quick`, set FORCE_QUICK=true and remove it. Otherwise FORCE_QUICK=false.
+- If `$ARGUMENTS` contains `--loop`, set LOOP=true and remove it. Otherwise LOOP=false.
+- If FORCE_QUICK is true and FORCE_FULL or LOOP is true, tell the user "--quick cannot be combined with --full or --loop." and STOP.
+- If LOOP is true, set FORCE_FULL=true. The loop always uses the full pipeline.
+- Classify the remaining $ARGUMENTS:
+  - A number → MODE=pr
+  - One or more file paths (ending in .md, .txt, .yaml, .json, or existing on disk) → MODE=files
+  - Empty → MODE=branch
 
 Determine REPO_ROOT — the main repository root (not a worktree root). Run:
 `REPO_ROOT=$(realpath "$(git rev-parse --git-common-dir)" | sed 's|/\.git$||')`
 
 Set SESSION_DIR based on mode:
 
+- LOOP=true (any mode): SESSION_DIR="$REPO_ROOT/.ai/deepreview/loop-iter1-$(date +%Y-%m-%d-%H%M%S)"
 - MODE=pr: SESSION_DIR="$REPO_ROOT/.ai/deepreview/$ARGUMENTS-$(date +%Y-%m-%d)"
 - MODE=files: SESSION_DIR="$REPO_ROOT/.ai/deepreview/files-$(date +%Y-%m-%d-%H%M%S)"
 - MODE=branch: SESSION_DIR="$REPO_ROOT/.ai/deepreview/$(git branch --show-current)-$(date +%Y-%m-%d)"
 
 Create the directory with `mkdir -p $SESSION_DIR`
+
+If LOOP is true, set ITERATION=1, ALL_SESSION_DIRS=[$SESSION_DIR], CONSECUTIVE_ZERO_NEW=0, EXPIRED_ENTRIES=[], ITERATION_LIMIT=5, and:
+
+- MODE=pr: the loop edits local files, so the PR branch must be checked out. Run `gh pr view $ARGUMENTS --json headRefName,baseRefName`. If `headRefName` differs from `git branch --show-current`, tell the user "Check out the PR branch first (`gh pr checkout $ARGUMENTS`)." and STOP. Set BASE_REF to the output of `git merge-base HEAD origin/<baseRefName>`.
+- MODE=branch: set BASE_REF=main.
 
 STEP 2: PREPARE INPUT
 
@@ -45,10 +51,7 @@ MODE=pr only, set PR_NUMBER=$ARGUMENTS and gather PR context:
 - Run `gh pr view $PR_NUMBER --json headRefOid --jq .headRefOid` and save the output as PR_HEAD_SHA.
 - Run `gh repo view --json owner,name --jq '.owner.login + "/" + .name'` and save the output as OWNER_REPO.
 - Run `gh pr view $PR_NUMBER --json title,body,url,headRefOid,comments,reviews > $SESSION_DIR/pr-meta.json`. If it fails, warn the user and continue.
-- Prior review context:
-  - If NO_PRIOR is false: call the `mcp__deepreview__build_prior_review` tool with `pr_number` set to $PR_NUMBER, `output_path` set to "$SESSION_DIR/prior-review.md", and `manual_prior_review` set to $PRIOR_REVIEW_FILE (omit if empty). Save its return string as BUILD_PRIOR_SUMMARY. If it fails, warn the user, set BUILD_PRIOR_SUMMARY to the error, and continue.
-  - If NO_PRIOR is true and PRIOR_REVIEW_FILE is set: run `cp "$PRIOR_REVIEW_FILE" "$SESSION_DIR/prior-review.md"` and set BUILD_PRIOR_SUMMARY="Using manual prior review only (--no-prior skipped GitHub fetch)."
-  - If NO_PRIOR is true and PRIOR_REVIEW_FILE is empty: set BUILD_PRIOR_SUMMARY="Skipped (--no-prior)".
+- Call the `mcp__deepreview__build_prior_review` tool with `pr_number` set to $PR_NUMBER and `output_path` set to "$SESSION_DIR/prior-review.md". Save its return string as BUILD_PRIOR_SUMMARY. If it fails, warn the user, set BUILD_PRIOR_SUMMARY to the error, and continue.
 - If "$SESSION_DIR/prior-review.md" exists and is non-empty, set PRIOR_REVIEW_PREAMBLE to this literal string:
 
 ```
@@ -92,17 +95,16 @@ Use this context to calibrate finding severity. For example:
 
 If metadata extraction fails or no version info is found, set PROJECT_CONTEXT="" (empty string).
 
-STEP 2b: BUILD CONTEXT PREAMBLE
-If CONTEXT_FILE exists, set DESIGN_CONTEXT to the contents of that file. Build a CONTEXT_PREAMBLE:
-"${PROJECT_CONTEXT}## Design Decisions (intentional — do not flag)\nThe following are deliberate design choices. Do NOT flag these as issues or suggest alternatives.\n```\n$DESIGN_CONTEXT\n```\n\n"
+If LOOP is true, load learned calibration by calling the `mcp__deepreview__calibration_load` tool (no arguments). If `preamble` is non-empty, append it to PROJECT_CONTEXT. If `expired` is non-empty, store it in EXPIRED_ENTRIES for STEP L4. If the tool fails, continue without calibration.
 
-If CONTEXT_FILE does not exist and PROJECT_CONTEXT is not empty, set CONTEXT_PREAMBLE to just "${PROJECT_CONTEXT}\n"
+STEP 2b: BUILD PREAMBLES
+Set CONTEXT_PREAMBLE to "${PROJECT_CONTEXT}\n" (or "" if PROJECT_CONTEXT is empty), then append PRIOR_REVIEW_PREAMBLE. Reviewers receive CONTEXT_PREAMBLE. Validators do not, on purpose, so they verify claims without bias.
 
-If both are empty, set CONTEXT_PREAMBLE="" (empty string).
-
-Append PRIOR_REVIEW_PREAMBLE to the end of CONTEXT_PREAMBLE. Reviewers receive it. Validators do not, on purpose, so they verify claims without bias.
+Set SYNTH_PREAMBLE=PRIOR_REVIEW_PREAMBLE. The synthesizer receives it.
 
 STEP 2c: CHECK EFFECTIVE SIZE AND ROUTE
+If FORCE_QUICK is true: go to STEP 3-QUICK.
+
 If FORCE_FULL is true: proceed to STEP 3 (full pipeline).
 
 If MODE is "files": proceed to STEP 3 (full pipeline).
@@ -167,7 +169,7 @@ Task 6 — Use the Agent tool with subagent_type="deepreview:deepreview-performa
 Task 7 — Use the Agent tool with subagent_type="deepreview:deepreview-maintainability":
 "${CONTEXT_PREAMBLE}You are reviewing $INPUT_DESCRIPTION. Read the content at $SESSION_DIR/input.txt. Write your review to $SESSION_DIR/review-maintainability.md."
 
-Wait for all 7 to return. Record which succeeded and which failed.
+Wait for all 7 to return. Record which succeeded and which failed. If no review files were written, tell the user "All reviewers failed. The input may be too large, or there was an infrastructure failure." and STOP.
 
 STEP 4: DISPATCH STAGE 2 — CROSS-VALIDATION (7 parallel tasks)
 Only proceed with reviews that exist. Dispatch ALL SEVEN simultaneously:
@@ -197,10 +199,11 @@ Wait for all 7 to return.
 
 STEP 5: DISPATCH STAGE 3 — SYNTHESIS (1 task)
 Task 15 — Use the Agent tool with subagent_type="deepreview:deepreview-synthesizer":
-"${PRIOR_REVIEW_PREAMBLE}Read the validated reviews at: $SESSION_DIR/validated-correctness.md, $SESSION_DIR/validated-security.md, $SESSION_DIR/validated-architecture.md, $SESSION_DIR/validated-docs.md, $SESSION_DIR/validated-compatibility.md, $SESSION_DIR/validated-performance.md, $SESSION_DIR/validated-maintainability.md. Write the synthesis to $SESSION_DIR/synthesis.md."
+"${SYNTH_PREAMBLE}Read the validated reviews at: $SESSION_DIR/validated-correctness.md, $SESSION_DIR/validated-security.md, $SESSION_DIR/validated-architecture.md, $SESSION_DIR/validated-docs.md, $SESSION_DIR/validated-compatibility.md, $SESSION_DIR/validated-performance.md, $SESSION_DIR/validated-maintainability.md (skip any that don't exist). Write the synthesis to $SESSION_DIR/synthesis.md."
 
 Record the stats line from its return. If synthesis.md does not exist or is empty, tell the user "Synthesis failed." and STOP.
 
+If LOOP is true: go to STEP L1.
 If MODE=pr: go to STEP 7a. Planning waits until the user asks to apply fixes (STEP 9).
 
 STEP 6: DISPATCH STAGE 4 — IMPLEMENTATION PLAN (1 task)
@@ -218,10 +221,10 @@ If this task fails (agent error, timeout, or does not produce validated-plan.md)
 Go to STEP 7a (SUMMARY).
 
 STEP 7a: SUMMARY (1 task, every mode)
-MODE=pr — Use the Agent tool with subagent_type="deepreview:deepreview-summary":
+MODE=pr and LOOP is false — Use the Agent tool with subagent_type="deepreview:deepreview-summary":
 "The input is a PR. Read the synthesis at $SESSION_DIR/synthesis.md, the diff at $SESSION_DIR/input.txt, the PR metadata at $SESSION_DIR/pr-meta.json, and the prior review at $SESSION_DIR/prior-review.md (skip any that don't exist). OWNER_REPO=$OWNER_REPO, PR_NUMBER=$PR_NUMBER, HEAD_SHA=$PR_HEAD_SHA. Write the summary to $SESSION_DIR/summary.md."
 
-MODE=branch or MODE=files — Use the Agent tool with subagent_type="deepreview:deepreview-summary":
+Otherwise (MODE=branch, MODE=files, or LOOP is true; the loop edits local files, so PR links would go stale) — Use the Agent tool with subagent_type="deepreview:deepreview-summary":
 "The input is $INPUT_DESCRIPTION. Read the synthesis at $SESSION_DIR/synthesis.md and the input at $SESSION_DIR/input.txt. Write the summary to $SESSION_DIR/summary.md."
 
 Record its response as SUMMARY. If it fails, warn the user and show the stats instead.
@@ -283,11 +286,125 @@ Only if the user says yes: call `mcp__deepreview__post_review` again with the sa
 
 If the user says no or asks for changes, do not post. Tell them threads.md can be edited and STEP 10 rerun.
 
+LOOP STEPS (only when LOOP is true)
+The loop reviews, applies every fix without asking, and reviews again until clean. It never posts to GitHub.
+
+STEP L1: SHOW AND CHECK EXIT
+Run STEP 7a (skip its "No new issues" line) and print "Iteration $ITERATION" followed by SUMMARY verbatim (skip the path line). Do not pause for input.
+
+Parse the synthesis stats line. If it has the `| N new, N recurring, N regression` suffix, use NOVELTY MODE. Otherwise use LEGACY MODE.
+
+NOVELTY MODE (iteration 2+):
+
+- If `0 new` and `0 regression`: tell the user "deepreview --loop converged after $ITERATION iteration(s)." Go to STEP L4, then STOP.
+- If `0 new`, increment CONSECUTIVE_ZERO_NEW. Otherwise reset it to 0.
+- If CONSECUTIVE_ZERO_NEW >= 2 and recurring > 0 and `0 regression`: tell the user "Deadlock: N recurring findings persist with no new issues across 2 iterations." Ask: "Skip these findings, give guidance, or stop?" Follow the answer.
+
+LEGACY MODE (iteration 1, or no novelty suffix):
+
+- From iteration 2, warn "Synthesizer did not return novelty metrics. Using legacy convergence detection."
+- If the stats report 0 critical, 0 warnings, 0 suggestions: tell the user "deepreview --loop complete after $ITERATION iteration(s). No findings remain." Go to STEP L4, then STOP.
+- From iteration 2, if the stats line equals the previous iteration's stats line, treat it as a deadlock and ask as above.
+
+STEP L2: PLAN AND APPLY
+Run STEP 6 and STEP 7 (ignore their "Go to" lines). Then apply automatically. Do NOT ask for permission.
+
+Use the Agent tool with subagent_type="deepreview:deepreview-applier":
+"Read the implementation plan at $PLAN_FILE. Apply the fixes."
+
+Show the user the files changed. If the applier reports VERIFICATION: FAIL, show its error summary and ask: "Fixes failed lint/test. Revert and skip the failing fix, continue anyway, or stop?"
+
+- Revert: run `git checkout -- .`, re-run the planner without the failing fix (add it to SKIP_LIST) writing to `$SESSION_DIR/implementation-plan-retry.md`, run the plan validator on that file (tell it the SKIP_LIST findings were excluded on purpose), set PLAN_FILE, and run the applier again.
+- Continue: go to STEP L3.
+- Stop: go to STEP L4, then STOP.
+
+STEP L3: NEXT ITERATION
+Set ITERATION = ITERATION + 1. If ITERATION > ITERATION_LIMIT, show the latest stats and ask "Continue for 5 more iterations, or stop?" On stop, go to STEP L4, then STOP. On continue, add 5 to ITERATION_LIMIT.
+
+Set SESSION_DIR="$REPO_ROOT/.ai/deepreview/loop-iter$ITERATION-$(date +%Y-%m-%d-%H%M%S)", run `mkdir -p $SESSION_DIR`, and append it to ALL_SESSION_DIRS.
+
+Prepare fresh input:
+
+- MODE=pr or MODE=branch: run `git diff $BASE_REF > $SESSION_DIR/input.txt`
+- MODE=files: re-read the same files into `$SESSION_DIR/input.txt` as in STEP 2.
+
+If input.txt is empty, tell the user "Nothing left to review." Go to STEP L4, then STOP.
+
+If the new input.txt has more than 50% more lines than the previous iteration's, tell the user "Diff grew from ~N to ~M lines. The fixes may be adding more than they remove." Ask: "Continue, or revert the last iteration?" On revert, run `git checkout -- .` and STOP.
+
+Build prior context. Interpolate the actual paths from ALL_SESSION_DIRS (excluding the current one) into the prompt; the subagent cannot see your variables.
+
+Task — Use the Agent tool with subagent_type="general-purpose":
+"Read synthesis.md and implementation-plan.md from these directories: [PATHS]. Skip missing files. Return ONLY these four sections, deduplicated:
+
+## Prior Findings (already reported — do not re-report or verify)
+
+- [Short title] ([category]) — [file:line] — [1-sentence description of the underlying mechanism]
+
+## Known Issue Locations (same file:line = likely same issue — justify if reporting again)
+
+- [file:line] — [condensed mechanism] ([category])
+
+## Applied Fixes (changes made by previous iterations — new bugs here are regressions)
+
+- [Fix title] — [file:line] (applied in iter N)
+
+## Covered Regions (already examined — prioritize elsewhere)
+
+- [file:line-range] (each finding's line padded by 20 lines in each direction)"
+
+Set LOOP_CONTEXT to the returned text. If it does not contain "## Prior Findings", warn "Helper returned malformed prior context. Proceeding without deduplication." and set LOOP_CONTEXT="".
+
+Set CONTEXT_PREAMBLE to "${PROJECT_CONTEXT}\n" followed by this literal text (with $LOOP_CONTEXT filled in):
+
+"Your goal is to find issues that PREVIOUS reviewers missed. Do NOT re-report, verify, or comment on prior findings.
+
+When you encounter a potential issue:
+
+1. Check "Known Issue Locations". If your finding is at or near a listed location, it is almost certainly already reported. Only report it if the mechanism is genuinely different.
+2. Check "Prior Findings". If your finding matches an existing mechanism (even at a different location), do not report it.
+
+If you find a bug in code listed under "Applied Fixes", flag it as a regression.
+
+$LOOP_CONTEXT
+
+Find genuinely new issues. Prioritize areas not yet examined.
+
+"
+
+If LOOP_CONTEXT is non-empty, set SYNTH_PREAMBLE to "## Prior Findings for Novelty Classification\n" followed by only the "## Prior Findings" and "## Applied Fixes" sections of LOOP_CONTEXT, then a blank line. Otherwise set SYNTH_PREAMBLE="" (use LEGACY MODE this iteration).
+
+Go to STEP 3.
+
+STEP L4: PROPOSE CALIBRATION UPDATES
+Skip this step if ITERATION is 1 and the loop exited clean.
+
+Read the reviewer files ($SESSION_DIR/review-\*.md) and synthesis.md from the last completed iteration. For each synthesis finding, check whether any reviewer flagged it at a HIGHER severity. Only consider downgrades.
+
+For each downgrade pattern: if it matches an existing calibration entry (active or in EXPIRED_ENTRIES), increment observedCount and set lastConfirmed to today. Otherwise propose a new entry with observedCount=1.
+
+If there are proposed or expired entries, call `mcp__deepreview__calibration_load` for the current entries and show:
+
+```
+Calibration update proposed:
+
+- NEW: "[pattern]" in [context]: [originalSeverity] → [adjustedSeverity]
+- UPDATED: "[pattern]" in [context]: observed N→N+1, re-confirmed
+- EXPIRED: "[pattern]" (last confirmed N days ago) — will be removed
+
+Accept these changes? [y/n/edit]
+```
+
+On yes, merge with the active entries (dropping expired ones) and call `mcp__deepreview__calibration_save`. On edit, let the user change the proposal, then save. On no, skip. If nothing changed, skip silently.
+
 IMPORTANT RULES:
 
-- Do NOT read any files in $SESSION_DIR yourself, except printing threads.md verbatim in STEP 10.
+- Do NOT read any files in $SESSION_DIR yourself, except printing threads.md verbatim in STEP 10 and reading review/synthesis files in STEP L4.
 - Use ONLY the file paths, stats/summary lines, and SUMMARY returned by subagents.
 - If a subagent fails, note which one failed and continue with what you have.
 - If all 7 reviewers fail in Stage 1, tell the user and STOP.
+- Without --loop, never apply fixes or post comments without the user's answer.
+- With --loop, apply ALL findings (critical, warning, and suggestion) automatically, but print each iteration's summary first. Ask only on iteration limit, deadlock, failed verification, or diff growth. Never post to GitHub.
+- Every loop iteration uses a NEW session directory and the full pipeline with cross-validation. Iteration 2+ reviewers must not be told to verify prior findings.
 - Never post review comments without showing them and getting a "yes" in STEP 10.
 - Never submit a GitHub review. Posted reviews stay pending. The MCP server also blocks submit calls.

@@ -1,8 +1,8 @@
 {
   "name": "deepreview-claude",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "Multi-agent parallel code/spec review for Claude Code (plugin)",
+  "description": "Multi-agent parallel code review for Claude Code (plugin)",
   "license": "MIT",
   "repository": {
     "type": "git",
