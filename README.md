@@ -162,6 +162,23 @@ mise run build   # rebuilds mcp-server/dist/index.mjs — commit the result
 mise run reinstall  # rebuild, then reinstall the plugin into Claude Code (restart after)
 ```
 
+### Releases
+
+Versions come from [Conventional Commits](https://www.conventionalcommits.org/) via
+[release-please](https://github.com/googleapis/release-please). Do not bump versions by hand.
+
+- PRs are squash-merged, so the **PR title** is the commit message. A check enforces the format.
+- After each merge to `main`, release-please opens or updates a release PR. It bumps
+  `package.json` and `.claude-plugin/plugin.json` and updates `CHANGELOG.md`.
+- Merging the release PR tags the release. Users then get it with `claude plugin update`.
+
+| PR title                            | Bump while < 1.0 | Bump from 1.0 |
+| ----------------------------------- | ---------------- | ------------- |
+| `fix: ...`                          | patch            | patch         |
+| `feat: ...`                         | minor            | minor         |
+| `feat!: ...` or `BREAKING CHANGE:`  | minor            | major         |
+| `chore:`, `docs:`, `refactor:`, ... | none             | none          |
+
 ## License
 
 MIT
