@@ -19,10 +19,16 @@ Add this repository as a plugin marketplace, then install the plugin:
 /plugin install deepreview@deepreview-claude
 ```
 
-For local development, add it by path instead: `/plugin marketplace add /path/to/deepreview-claude`.
+### Update
 
-To update after a new release: `claude plugin update deepreview@deepreview-claude`, then restart
-Claude Code.
+Pull the latest version from GitHub:
+
+```
+/plugin marketplace update deepreview-claude
+```
+
+Plugins reload automatically. You can also run `claude plugin update deepreview@deepreview-claude`
+from a shell.
 
 ## Usage
 
@@ -159,7 +165,6 @@ mise run test
 mise run lint
 mise run fmt
 mise run build   # rebuilds mcp-server/dist/index.mjs — commit the result
-mise run reinstall  # rebuild, then reinstall the plugin into Claude Code (restart after)
 ```
 
 ### Releases
