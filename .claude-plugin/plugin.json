@@ -1,7 +1,7 @@
 {
   "name": "deepreview",
   "displayName": "DeepReview",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Multi-agent parallel code review. Spawns specialized review agents, cross-validates findings, synthesizes results, and produces an actionable implementation plan.",
   "author": {
     "name": "Rezoan Tamal",
@@ -9,6 +9,9 @@
   },
   "repository": "https://github.com/iamrz1/deepreview-claude",
   "license": "MIT",
-  "keywords": ["code-review", "multi-agent"],
+  "keywords": [
+    "code-review",
+    "multi-agent"
+  ],
   "mcpServers": "./.mcp.json"
 }
